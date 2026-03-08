@@ -28,14 +28,31 @@ export function ChatPanel({
         () =>
             new DefaultChatTransport({
                 api: "/api/chat",
-                prepareSendMessagesRequest: async ({ messages, body }) => ({
-                    body: { ...body, messages, scene: await getSceneRef.current?.() },
-                }),
+                prepareSendMessagesRequest: async ({
+                    id,
+                    messages,
+                    body,
+                }) => {
+                    let scene: string | null = null;
+                    try {
+                        scene = (await getSceneRef.current?.()) ?? null;
+                    } catch (e) {
+                        console.warn("Failed to get scene for context:", e);
+                    }
+                    return {
+                        body: { ...body, id, messages, scene },
+                    };
+                },
             }),
         [],
     );
 
-    const { messages, sendMessage, status } = useChat({ transport });
+    const { messages, sendMessage, status, error, clearError } = useChat({
+        transport,
+        onError(err) {
+            console.error("Chat error:", err);
+        },
+    });
 
     const appliedToolCalls = useRef(new Set<string>());
     useEffect(() => {
@@ -70,9 +87,18 @@ export function ChatPanel({
         async (content: string) => {
             const trimmed = content.trim();
             if (!trimmed) return;
-            await sendMessage({ text: trimmed });
+
+            if (error) {
+                clearError();
+            }
+
+            try {
+                await sendMessage({ text: trimmed });
+            } catch (e) {
+                console.error("sendMessage failed:", e);
+            }
         },
-        [sendMessage],
+        [sendMessage, error, clearError],
     );
 
     const isLoading = status === "streaming" || status === "submitted";
@@ -98,6 +124,21 @@ export function ChatPanel({
                 className="flex-1 overflow-auto px-4 py-4"
                 isLoading={isLoading}
             />
+
+            {error && (
+                <div className="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
+                    <div className="flex items-center justify-between">
+                        <span>Error: {error.message}</span>
+                        <button
+                            type="button"
+                            onClick={clearError}
+                            className="ml-2 underline hover:no-underline"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
                 <ChatComposer onSend={handleSend} disabled={isLoading} />

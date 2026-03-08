@@ -6,7 +6,9 @@ import { env } from "../environment";
 export function getModel() {
     switch (env.AI_PROVIDER) {
         case "openai":
-            return createOpenAI({ apiKey: env.OPENAI_API_KEY })(env.AI_MODEL);
+            return createOpenAI({ apiKey: env.OPENAI_API_KEY }).chat(
+                env.AI_MODEL,
+            );
         case "anthropic":
             return createAnthropic({ apiKey: env.ANTHROPIC_API_KEY })(
                 env.AI_MODEL,
