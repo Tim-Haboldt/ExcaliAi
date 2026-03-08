@@ -10,7 +10,7 @@ const Excalidraw = dynamic(
 
 type Props = Pick<
     ExcalidrawProps,
-    "initialData" | "onChange" | "onPointerUpdate" | "theme"
+    "initialData" | "onChange" | "onPointerUpdate" | "theme" | "excalidrawAPI"
 > & {
     className?: string;
 };

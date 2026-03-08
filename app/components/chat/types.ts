@@ -5,4 +5,6 @@ export type ChatMessage = {
     role: ChatRole;
     content: string;
     createdAt: number;
+    /** Serialized Excalidraw scene JSON, attached as context when available. */
+    excalidrawScene?: string;
 };

@@ -6,10 +6,11 @@ import { useLocalChat } from "./useLocalChat";
 
 type Props = {
     className?: string;
+    getExcalidrawScene?: () => Promise<string | null>;
 };
 
-export function ChatPanel({ className }: Props) {
-    const chat = useLocalChat();
+export function ChatPanel({ className, getExcalidrawScene }: Props) {
+    const chat = useLocalChat({ getExcalidrawScene });
 
     return (
         <aside

@@ -10,7 +10,11 @@ function id() {
     return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function useLocalChat() {
+type Options = {
+    getExcalidrawScene?: () => Promise<string | null>;
+};
+
+export function useLocalChat({ getExcalidrawScene }: Options = {}) {
     const [messages, setMessages] = useState<ChatMessage[]>(() => [
         {
             id: id(),
@@ -21,28 +25,35 @@ export function useLocalChat() {
         },
     ]);
 
-    const send = useCallback(async (content: string) => {
-        const trimmed = content.trim();
-        if (!trimmed) return;
+    const send = useCallback(
+        async (content: string) => {
+            const trimmed = content.trim();
+            if (!trimmed) return;
 
-        const userMsg: ChatMessage = {
-            id: id(),
-            role: "user",
-            content: trimmed,
-            createdAt: Date.now(),
-        };
+            const scene = await getExcalidrawScene?.();
 
-        setMessages((prev) => [...prev, userMsg]);
+            const userMsg: ChatMessage = {
+                id: id(),
+                role: "user",
+                content: trimmed,
+                createdAt: Date.now(),
+                excalidrawScene: scene ?? undefined,
+            };
 
-        // Placeholder “assistant” behavior to keep the UI flow working.
-        const assistantMsg: ChatMessage = {
-            id: id(),
-            role: "assistant",
-            content: `Received: ${trimmed}`,
-            createdAt: Date.now(),
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
-    }, []);
+            setMessages((prev) => [...prev, userMsg]);
+
+            const assistantMsg: ChatMessage = {
+                id: id(),
+                role: "assistant",
+                content: scene
+                    ? `Received: ${trimmed}\n\n(Scene context attached — ${JSON.parse(scene).elements?.length ?? 0} element(s))`
+                    : `Received: ${trimmed}`,
+                createdAt: Date.now(),
+            };
+            setMessages((prev) => [...prev, assistantMsg]);
+        },
+        [getExcalidrawScene],
+    );
 
     const api = useMemo(() => ({ messages, send }), [messages, send]);
     return api;
