@@ -7,10 +7,15 @@ import { useLocalChat } from "./useLocalChat";
 type Props = {
     className?: string;
     getExcalidrawScene?: () => Promise<string | null>;
+    updateExcalidrawScene?: (json: string) => Promise<void>;
 };
 
-export function ChatPanel({ className, getExcalidrawScene }: Props) {
-    const chat = useLocalChat({ getExcalidrawScene });
+export function ChatPanel({
+    className,
+    getExcalidrawScene,
+    updateExcalidrawScene,
+}: Props) {
+    const chat = useLocalChat({ getExcalidrawScene, updateExcalidrawScene });
 
     return (
         <aside

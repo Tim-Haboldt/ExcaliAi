@@ -12,9 +12,13 @@ function id() {
 
 type Options = {
     getExcalidrawScene?: () => Promise<string | null>;
+    updateExcalidrawScene?: (json: string) => Promise<void>;
 };
 
-export function useLocalChat({ getExcalidrawScene }: Options = {}) {
+export function useLocalChat({
+    getExcalidrawScene,
+    updateExcalidrawScene,
+}: Options = {}) {
     const [messages, setMessages] = useState<ChatMessage[]>(() => [
         {
             id: id(),
@@ -55,6 +59,9 @@ export function useLocalChat({ getExcalidrawScene }: Options = {}) {
         [getExcalidrawScene],
     );
 
-    const api = useMemo(() => ({ messages, send }), [messages, send]);
+    const api = useMemo(
+        () => ({ messages, send, updateExcalidrawScene }),
+        [messages, send, updateExcalidrawScene],
+    );
     return api;
 }
