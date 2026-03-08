@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Excalidraw AI
+
+This project is a `Next.js` app with an `Excalidraw` canvas and a side chat panel.
+
+Phase 1 wires the side panel to the Vercel AI SDK so the app can stream assistant responses from a provider selected through environment variables. Direct canvas control is intentionally deferred to a later phase.
 
 ## Getting Started
 
-First, run the development server:
+1. Install dependencies.
+2. Configure your AI provider environment variables.
+3. Start the development server.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## AI Provider Configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The chat route reads its provider selection from environment variables.
 
-## Learn More
+```bash
+AI_PROVIDER=openai
+AI_MODEL=gpt-4o-mini
+OPENAI_API_KEY=your_key_here
+```
 
-To learn more about Next.js, take a look at the following resources:
+Supported `AI_PROVIDER` values:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `openai`
+- `anthropic`
+- `google`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Provider-specific API keys:
 
-## Deploy on Vercel
+- `OPENAI_API_KEY` for `openai`
+- `ANTHROPIC_API_KEY` for `anthropic`
+- `GOOGLE_GENERATIVE_AI_API_KEY` for `google`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Optional variables:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `AI_MODEL` to override the default model for the selected provider
+- `OPENAI_BASE_URL` to point the OpenAI provider at a compatible endpoint
+
+## Current Scope
+
+- The chat UI streams assistant responses through `app/api/chat/route.ts`.
+- Provider selection is isolated in `lib/ai/provider.ts`.
+- The system prompt for the workspace assistant lives in `lib/ai/system-prompt.ts`.
+- The assistant does not yet read or mutate live Excalidraw state.
+
+## Next Phase
+
+The next phase can expose Excalidraw state through the workspace layer and add structured AI tool calls for canvas edits such as creating shapes, moving elements, or clearing the board.
