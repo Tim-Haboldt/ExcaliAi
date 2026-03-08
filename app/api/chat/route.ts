@@ -1,4 +1,10 @@
-import { streamText, tool, convertToModelMessages, stepCountIs } from "ai";
+import {
+    streamText,
+    tool,
+    convertToModelMessages,
+    stepCountIs,
+    type ModelMessage,
+} from "ai";
 import { z } from "zod";
 import { getModel } from "@/lib/ai/provider";
 import { SYSTEM_PROMPT } from "@/lib/ai/system-prompt";
@@ -8,6 +14,40 @@ import {
     aiDeleteElementsSchema,
     simplifySceneForContext,
 } from "@/lib/ai/excalidraw-ai-schema";
+
+const EMPTY_TOOL_INPUT: Record<string, unknown> = {};
+
+function ensureToolInputsAreObjects(
+    messages: ModelMessage[],
+): ModelMessage[] {
+    return messages.map((message) => {
+        if (message.role !== "assistant") {
+            return message;
+        }
+
+        if (typeof message.content === "string") {
+            return message;
+        }
+
+        const sanitizedContent = message.content.map((part) => {
+            if (part.type !== "tool-call") {
+                return part;
+            }
+
+            if (
+                part.input !== null &&
+                typeof part.input === "object" &&
+                !Array.isArray(part.input)
+            ) {
+                return part;
+            }
+
+            return { ...part, input: EMPTY_TOOL_INPUT };
+        });
+
+        return { ...message, content: sanitizedContent };
+    });
+}
 
 function buildTools(scene: string | null, png: string | null) {
     return {
@@ -89,9 +129,10 @@ export async function POST(req: Request) {
         const { messages: uiMessages, scene, png } = await req.json();
         const tools = buildTools(scene ?? null, png ?? null);
 
-        const modelMessages = await convertToModelMessages(uiMessages, {
+        const rawModelMessages = await convertToModelMessages(uiMessages, {
             tools,
         });
+        const modelMessages = ensureToolInputsAreObjects(rawModelMessages);
 
         const result = streamText({
             model: getModel(),
