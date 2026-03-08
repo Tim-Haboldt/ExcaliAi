@@ -9,7 +9,7 @@ import {
 } from "react";
 import { Group, Panel, type PanelSize } from "react-resizable-panels";
 import type { UIMessage } from "@ai-sdk/react";
-import { ChatPanel } from "../chat/ChatPanel";
+import { ChatPanel, type ChatPanelHandle } from "../chat/ChatPanel";
 import { ExcalidrawCanvas } from "../excalidraw/ExcalidrawCanvas";
 import { useExcalidrawOperations } from "./useExcalidrawOperations";
 import { PanelResizeHandle } from "./PanelResizeHandle";
@@ -52,6 +52,7 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
         } = useExcalidrawOperations();
 
         const chatMessagesRef = useRef<UIMessage[]>(initialChat ?? []);
+        const chatRef = useRef<ChatPanelHandle>(null);
 
         useImperativeHandle(ref, () => ({
             async getState() {
@@ -63,6 +64,19 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
                 };
             },
         }));
+
+        const handleAiPrompt = useCallback(
+            (instruction: string, selectedElementIds: string[]) => {
+                const prefix =
+                    selectedElementIds.length > 0
+                        ? `[Regarding selected elements: ${selectedElementIds.join(", ")}]\n`
+                        : "";
+                const fullMessage = `${prefix}${instruction}`;
+
+                void chatRef.current?.sendMessage(fullMessage);
+            },
+            [],
+        );
 
         const isDesktop = useMediaQuery("(min-width: 768px)");
         const orientation: "horizontal" | "vertical" = isDesktop
@@ -103,6 +117,8 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
                                 className="h-full w-full"
                                 excalidrawAPI={handleExcalidrawAPI}
                                 initialData={initialCanvas}
+                                theme="dark"
+                                onAiPrompt={handleAiPrompt}
                             />
                         </div>
                     </Panel>
@@ -122,6 +138,7 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
                             hidden={isChatCollapsed}
                         >
                             <ChatPanel
+                                ref={chatRef}
                                 className="h-full"
                                 initialMessages={initialChat}
                                 messagesRef={chatMessagesRef}
