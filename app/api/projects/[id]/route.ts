@@ -6,19 +6,21 @@ interface RouteContext {
     params: Promise<{ id: string }>;
 }
 
-async function findOwnedProject(projectId: string, accountId: string) {
-    const project = await database.project.findUnique({
-        where: { id: projectId },
+async function findAccessibleProject(projectId: string, accountId: string) {
+    const membership = await database.projectMember.findUnique({
+        where: {
+            projectId_accountId: { projectId, accountId },
+        },
+        include: {
+            project: true,
+        },
     });
-    if (!project) {
-        return { project: null, error: NextResponse.json({ error: "Project not found" }, { status: 404 }) };
+
+    if (!membership || membership.deleted) {
+        return { project: null, membership: null, error: "not_found" };
     }
 
-    if (project.accountId !== accountId) {
-        return { project: null, error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
-    }
-
-    return { project, error: null };
+    return { project: membership.project, membership, error: null };
 }
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -28,9 +30,16 @@ export async function GET(_request: Request, context: RouteContext) {
     }
 
     const { id } = await context.params;
-    const { project, error } = await findOwnedProject(id, session.accountId);
+    const { project, error } = await findAccessibleProject(
+        id,
+        session.accountId,
+    );
+
     if (error) {
-        return error;
+        return NextResponse.json(
+            { error: "Project not found" },
+            { status: 404 },
+        );
     }
 
     return NextResponse.json({ project });
@@ -43,9 +52,13 @@ export async function PUT(request: Request, context: RouteContext) {
     }
 
     const { id } = await context.params;
-    const { error } = await findOwnedProject(id, session.accountId);
+    const { error } = await findAccessibleProject(id, session.accountId);
+
     if (error) {
-        return error;
+        return NextResponse.json(
+            { error: "Project not found" },
+            { status: 404 },
+        );
     }
 
     const body = await request.json();
@@ -73,12 +86,33 @@ export async function DELETE(_request: Request, context: RouteContext) {
     }
 
     const { id } = await context.params;
-    const { error } = await findOwnedProject(id, session.accountId);
-    if (error) {
-        return error;
+    const { membership, error } = await findAccessibleProject(
+        id,
+        session.accountId,
+    );
+
+    if (error || !membership) {
+        return NextResponse.json(
+            { error: "Project not found" },
+            { status: 404 },
+        );
     }
 
-    await database.project.delete({ where: { id } });
+    await database.projectMember.update({
+        where: { id: membership.id },
+        data: { deleted: true },
+    });
+
+    const remainingMembers = await database.projectMember.count({
+        where: {
+            projectId: id,
+            deleted: false,
+        },
+    });
+
+    if (remainingMembers === 0) {
+        await database.project.delete({ where: { id } });
+    }
 
     return NextResponse.json({ success: true });
 }

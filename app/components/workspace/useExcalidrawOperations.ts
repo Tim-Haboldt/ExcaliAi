@@ -169,6 +169,7 @@ export function useExcalidrawOperations() {
 
     return {
         handleExcalidrawAPI,
+        excalidrawApiRef,
         getScene,
         getPng,
         updateScene,

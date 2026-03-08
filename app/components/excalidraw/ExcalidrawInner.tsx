@@ -1,8 +1,14 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
-import type { ExcalidrawProps, UIAppState } from "@excalidraw/excalidraw/types";
+import type {
+    ExcalidrawProps,
+    UIAppState,
+    Collaborator,
+    SocketId,
+    ExcalidrawImperativeAPI,
+} from "@excalidraw/excalidraw/types";
 import { AiQuickPrompt } from "./AiQuickPrompt";
 
 type Props = Pick<
@@ -10,6 +16,7 @@ type Props = Pick<
     "initialData" | "onChange" | "onPointerUpdate" | "theme" | "excalidrawAPI"
 > & {
     onAiPrompt?: (instruction: string, selectedElementIds: string[]) => void;
+    collaborators?: Map<SocketId, Collaborator>;
 };
 
 function extractSelectedIds(appState: UIAppState): string[] {
@@ -20,9 +27,34 @@ function extractSelectedIds(appState: UIAppState): string[] {
     return Object.keys(appState.selectedElementIds);
 }
 
-export default function ExcalidrawInner({ onAiPrompt, ...props }: Props) {
+export default function ExcalidrawInner({
+    onAiPrompt,
+    collaborators,
+    ...props
+}: Props) {
     const onAiPromptRef = useRef(onAiPrompt);
     onAiPromptRef.current = onAiPrompt;
+
+    const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
+    const collaboratorsRef = useRef(collaborators);
+    collaboratorsRef.current = collaborators;
+
+    const handleExcalidrawApi = useCallback(
+        (api: ExcalidrawImperativeAPI) => {
+            excalidrawApiRef.current = api;
+            props.excalidrawAPI?.(api);
+        },
+        [props.excalidrawAPI],
+    );
+
+    useEffect(() => {
+        const api = excalidrawApiRef.current;
+        if (!api || !collaborators) {
+            return;
+        }
+
+        api.updateScene({ collaborators });
+    }, [collaborators]);
 
     const stableOnSubmit = useCallback(
         (instruction: string, selectedIds: string[]) => {
@@ -46,6 +78,7 @@ export default function ExcalidrawInner({ onAiPrompt, ...props }: Props) {
     return (
         <Excalidraw
             {...props}
+            excalidrawAPI={handleExcalidrawApi}
             renderTopRightUI={onAiPrompt ? renderTopRightUI : undefined}
         >
             <MainMenu>

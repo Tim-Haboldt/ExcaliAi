@@ -4,18 +4,22 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { UIMessage } from "@ai-sdk/react";
 import type { ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
 import { AuthForm } from "./components/auth/AuthForm";
-import { Workspace, type WorkspaceHandle } from "./components/workspace/Workspace";
-import { ProjectSidebar } from "./components/sidebar/ProjectSidebar";
+import {
+    Workspace,
+    type WorkspaceHandle,
+} from "./components/workspace/Workspace";
+import {
+    ProjectSidebar,
+    type ProjectSummary,
+} from "./components/sidebar/ProjectSidebar";
+import { InviteDialog } from "./components/collaboration/InviteDialog";
+import { SocketProvider } from "./components/collaboration/SocketProvider";
+import { useSocket } from "./hooks/useSocket";
+import type { PendingInvitation } from "./components/collaboration/InvitationList";
 
 interface User {
     id: string;
     username: string;
-}
-
-interface ProjectSummary {
-    id: string;
-    createdAt: string;
-    updatedAt: string;
 }
 
 interface ProjectData {
@@ -74,13 +78,17 @@ async function createProject(): Promise<string> {
     return data.id;
 }
 
-export default function Home() {
-    const [authState, setAuthState] = useState<AuthState>({ status: "loading" });
-    const [projects, setProjects] = useState<ProjectSummary[]>([]);
-    const [currentProject, setCurrentProject] = useState<ProjectData | null>(null);
-    const [isSwitching, setIsSwitching] = useState(false);
+async function fetchInvitations(): Promise<PendingInvitation[]> {
+    const response = await fetch("/api/invitations");
+    const data = await response.json();
 
-    const workspaceRef = useRef<WorkspaceHandle>(null);
+    return data.invitations ?? [];
+}
+
+export default function Home() {
+    const [authState, setAuthState] = useState<AuthState>({
+        status: "loading",
+    });
 
     useEffect(() => {
         async function checkSession() {
@@ -88,7 +96,10 @@ export default function Home() {
                 const response = await fetch("/api/auth/me");
                 const data = await response.json();
                 if (data.user) {
-                    setAuthState({ status: "authenticated", user: data.user });
+                    setAuthState({
+                        status: "authenticated",
+                        user: data.user,
+                    });
                 } else {
                     setAuthState({ status: "unauthenticated" });
                 }
@@ -100,14 +111,62 @@ export default function Home() {
         checkSession();
     }, []);
 
-    useEffect(() => {
-        if (authState.status !== "authenticated") {
-            return;
-        }
+    switch (authState.status) {
+        case "loading":
+            return (
+                <div className="flex min-h-screen items-center justify-center">
+                    <p className="text-foreground/50">Loading...</p>
+                </div>
+            );
 
+        case "unauthenticated":
+            return (
+                <AuthForm
+                    onAuthenticated={(user) =>
+                        setAuthState({ status: "authenticated", user })
+                    }
+                />
+            );
+
+        case "authenticated":
+            return (
+                <SocketProvider>
+                    <AuthenticatedApp
+                        user={authState.user}
+                        onLogout={() => {
+                            setAuthState({ status: "unauthenticated" });
+                        }}
+                    />
+                </SocketProvider>
+            );
+    }
+}
+
+interface AuthenticatedAppProps {
+    user: User;
+    onLogout: () => void;
+}
+
+function AuthenticatedApp({ user, onLogout }: AuthenticatedAppProps) {
+    const [projects, setProjects] = useState<ProjectSummary[]>([]);
+    const [currentProject, setCurrentProject] = useState<ProjectData | null>(
+        null,
+    );
+    const [isSwitching, setIsSwitching] = useState(false);
+    const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
+    const [inviteProjectId, setInviteProjectId] = useState<string | null>(null);
+
+    const workspaceRef = useRef<WorkspaceHandle>(null);
+    const { socket, joinProject, leaveProject, collaborators } = useSocket();
+
+    useEffect(() => {
         async function loadProjects() {
-            const projectList = await fetchProjects();
+            const [projectList, invitationList] = await Promise.all([
+                fetchProjects(),
+                fetchInvitations(),
+            ]);
             setProjects(projectList);
+            setInvitations(invitationList);
 
             if (projectList.length > 0) {
                 const projectData = await fetchProject(projectList[0].id);
@@ -116,7 +175,21 @@ export default function Home() {
         }
 
         loadProjects();
-    }, [authState]);
+    }, []);
+
+    useEffect(() => {
+        if (!currentProject || !socket) {
+            return;
+        }
+
+        joinProject(currentProject.id).catch((joinError) => {
+            console.error("Failed to join project room:", joinError);
+        });
+
+        return () => {
+            leaveProject();
+        };
+    }, [currentProject?.id, socket, joinProject, leaveProject]);
 
     const saveCurrentProject = useCallback(async () => {
         if (!currentProject || !workspaceRef.current) {
@@ -191,7 +264,9 @@ export default function Home() {
 
                 if (currentProject?.id === projectId) {
                     if (updatedProjects.length > 0) {
-                        const nextProject = await fetchProject(updatedProjects[0].id);
+                        const nextProject = await fetchProject(
+                            updatedProjects[0].id,
+                        );
                         setCurrentProject(nextProject);
                     } else {
                         setCurrentProject(null);
@@ -206,70 +281,88 @@ export default function Home() {
 
     const handleLogout = useCallback(async () => {
         await saveCurrentProject();
+        leaveProject();
         await fetch("/api/auth/logout", { method: "POST" });
-        setAuthState({ status: "unauthenticated" });
-        setProjects([]);
-        setCurrentProject(null);
-    }, [saveCurrentProject]);
+        onLogout();
+    }, [saveCurrentProject, leaveProject, onLogout]);
 
-    switch (authState.status) {
-        case "loading":
-            return (
-                <div className="flex min-h-screen items-center justify-center">
-                    <p className="text-foreground/50">Loading...</p>
-                </div>
+    const handleInvitationAccept = useCallback(
+        async (invitationId: string) => {
+            setInvitations((previous) =>
+                previous.filter(
+                    (invitation) => invitation.id !== invitationId,
+                ),
             );
 
-        case "unauthenticated":
-            return (
-                <AuthForm
-                    onAuthenticated={(user) =>
-                        setAuthState({ status: "authenticated", user })
-                    }
-                />
-            );
+            const updatedProjects = await fetchProjects();
+            setProjects(updatedProjects);
+        },
+        [],
+    );
 
-        case "authenticated":
-            return (
-                <div className="flex h-dvh">
-                    <ProjectSidebar
-                        username={authState.user.username}
-                        projects={projects}
-                        activeProjectId={currentProject?.id ?? null}
-                        onProjectSelect={handleProjectSelect}
-                        onProjectDelete={handleProjectDelete}
-                        onNewProject={handleNewProject}
-                        onLogout={handleLogout}
-                    />
+    const handleInvitationDecline = useCallback((invitationId: string) => {
+        setInvitations((previous) =>
+            previous.filter((invitation) => invitation.id !== invitationId),
+        );
+    }, []);
 
-                    <div className="flex-1">
-                        {isSwitching ? (
-                            <div className="flex h-full items-center justify-center">
-                                <p className="text-foreground/50">Loading project...</p>
-                            </div>
-                        ) : currentProject ? (
-                            <Workspace
-                                key={currentProject.id}
-                                ref={workspaceRef}
-                                initialChat={currentProject.chat}
-                                initialCanvas={currentProject.canvas}
-                            />
-                        ) : (
-                            <div className="flex h-full items-center justify-center">
-                                <div className="text-center">
-                                    <p className="text-foreground/50">No project selected</p>
-                                    <button
-                                        type="button"
-                                        onClick={handleNewProject}
-                                        className="mt-3 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
-                                    >
-                                        Create your first project
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+    return (
+        <div className="flex h-dvh">
+            <ProjectSidebar
+                username={user.username}
+                projects={projects}
+                activeProjectId={currentProject?.id ?? null}
+                invitations={invitations}
+                onProjectSelect={handleProjectSelect}
+                onProjectDelete={handleProjectDelete}
+                onNewProject={handleNewProject}
+                onLogout={handleLogout}
+                onInvite={setInviteProjectId}
+                onInvitationAccept={handleInvitationAccept}
+                onInvitationDecline={handleInvitationDecline}
+            />
+
+            <div className="flex-1">
+                {isSwitching ? (
+                    <div className="flex h-full items-center justify-center">
+                        <p className="text-foreground/50">
+                            Loading project...
+                        </p>
                     </div>
-                </div>
-            );
-    }
+                ) : currentProject ? (
+                    <Workspace
+                        key={currentProject.id}
+                        ref={workspaceRef}
+                        projectId={currentProject.id}
+                        currentUserId={user.id}
+                        initialChat={currentProject.chat}
+                        initialCanvas={currentProject.canvas}
+                        collaborators={collaborators}
+                    />
+                ) : (
+                    <div className="flex h-full items-center justify-center">
+                        <div className="text-center">
+                            <p className="text-foreground/50">
+                                No project selected
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleNewProject}
+                                className="mt-3 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
+                            >
+                                Create your first project
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {inviteProjectId && (
+                <InviteDialog
+                    projectId={inviteProjectId}
+                    onClose={() => setInviteProjectId(null)}
+                />
+            )}
+        </div>
+    );
 }

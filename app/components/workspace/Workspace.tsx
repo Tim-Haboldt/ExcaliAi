@@ -3,18 +3,28 @@
 import {
     forwardRef,
     useCallback,
+    useEffect,
     useImperativeHandle,
+    useMemo,
     useRef,
     useState,
 } from "react";
 import { Group, Panel, type PanelSize } from "react-resizable-panels";
 import type { UIMessage } from "@ai-sdk/react";
+import type {
+    Collaborator as ExcalidrawCollaborator,
+    SocketId,
+} from "@excalidraw/excalidraw/types";
 import { ChatPanel, type ChatPanelHandle } from "../chat/ChatPanel";
 import { ExcalidrawCanvas } from "../excalidraw/ExcalidrawCanvas";
 import { useExcalidrawOperations } from "./useExcalidrawOperations";
 import { PanelResizeHandle } from "./PanelResizeHandle";
 import { useMediaQuery } from "@/app/hooks/useMediaQuery";
+import { useSocket } from "@/app/hooks/useSocket";
+import { useCanvasCollaboration } from "@/app/hooks/useCanvasCollaboration";
+import { PresenceIndicator } from "../collaboration/PresenceIndicator";
 import type { ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
+import type { Collaborator } from "@/server/socket-events";
 
 const CANVAS_DEFAULT_SIZE = "70%";
 const CHAT_DEFAULT_SIZE = "30%";
@@ -31,19 +41,60 @@ function isPanelCollapsed(panelSize: PanelSize): boolean {
     return panelSize.asPercentage < 1;
 }
 
+function buildExcalidrawCollaborators(
+    collaborators: Collaborator[],
+    ownAccountId: string | undefined,
+): Map<SocketId, ExcalidrawCollaborator> {
+    const collabMap = new Map<SocketId, ExcalidrawCollaborator>();
+
+    for (const collaborator of collaborators) {
+        if (collaborator.accountId === ownAccountId) {
+            continue;
+        }
+
+        collabMap.set(collaborator.socketId as SocketId, {
+            username: collaborator.username,
+            pointer: collaborator.pointer
+                ? {
+                      x: collaborator.pointer.x,
+                      y: collaborator.pointer.y,
+                      tool: "pointer",
+                  }
+                : undefined,
+            button: collaborator.button,
+            isCurrentUser: false,
+        });
+    }
+
+    return collabMap;
+}
+
 export interface WorkspaceHandle {
     getState: () => Promise<{ chat: UIMessage[]; canvas: string | null }>;
 }
 
 interface WorkspaceProps {
+    projectId: string;
+    currentUserId: string;
     initialChat?: UIMessage[];
     initialCanvas?: ExcalidrawInitialDataState;
+    collaborators?: Collaborator[];
 }
 
 export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
-    function Workspace({ initialChat, initialCanvas }, ref) {
+    function Workspace(
+        {
+            projectId,
+            currentUserId,
+            initialChat,
+            initialCanvas,
+            collaborators = [],
+        },
+        ref,
+    ) {
         const {
             handleExcalidrawAPI,
+            excalidrawApiRef,
             getScene,
             getPng,
             updateScene,
@@ -53,6 +104,37 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
 
         const chatMessagesRef = useRef<UIMessage[]>(initialChat ?? []);
         const chatRef = useRef<ChatPanelHandle>(null);
+
+        const { socket } = useSocket();
+        const { emitElementChanges, emitCursorPosition } =
+            useCanvasCollaboration(socket, excalidrawApiRef);
+
+        const AUTO_SAVE_INTERVAL_MS = 30_000;
+
+        useEffect(() => {
+            const interval = setInterval(async () => {
+                const canvas = await getScene();
+                if (!canvas) {
+                    return;
+                }
+
+                try {
+                    const canvasData = JSON.parse(canvas);
+                    await fetch(`/api/projects/${projectId}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            chat: chatMessagesRef.current,
+                            canvas: canvasData,
+                        }),
+                    });
+                } catch (autoSaveError) {
+                    console.error("Auto-save failed:", autoSaveError);
+                }
+            }, AUTO_SAVE_INTERVAL_MS);
+
+            return () => clearInterval(interval);
+        }, [projectId, getScene]);
 
         useImperativeHandle(ref, () => ({
             async getState() {
@@ -78,6 +160,35 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
             [],
         );
 
+        const handleCanvasChange = useCallback(
+            (elements: readonly { id: string; version: number; updated: number; [key: string]: unknown }[]) => {
+                emitElementChanges(elements);
+            },
+            [emitElementChanges],
+        );
+
+        const handlePointerUpdate = useCallback(
+            (payload: {
+                pointer: { x: number; y: number; tool: "pointer" | "laser" };
+                button: "up" | "down";
+            }) => {
+                emitCursorPosition({
+                    pointer: {
+                        x: payload.pointer.x,
+                        y: payload.pointer.y,
+                    },
+                    button: payload.button,
+                });
+            },
+            [emitCursorPosition],
+        );
+
+        const excalidrawCollaborators = useMemo(
+            () =>
+                buildExcalidrawCollaborators(collaborators, currentUserId),
+            [collaborators, currentUserId],
+        );
+
         const isDesktop = useMediaQuery("(min-width: 768px)");
         const orientation: "horizontal" | "vertical" = isDesktop
             ? "horizontal"
@@ -94,8 +205,21 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
             setIsChatCollapsed(isPanelCollapsed(panelSize));
         }, []);
 
+        const hasOtherCollaborators = collaborators.some(
+            (collaborator) => collaborator.accountId !== currentUserId,
+        );
+
         return (
-            <div className="h-dvh w-full bg-zinc-50 dark:bg-black">
+            <div className="flex h-dvh w-full flex-col bg-zinc-50 dark:bg-black">
+                {hasOtherCollaborators && (
+                    <div className="flex items-center border-b border-zinc-200 px-4 py-1.5 dark:border-zinc-800">
+                        <PresenceIndicator
+                            collaborators={collaborators}
+                            currentUserId={currentUserId}
+                        />
+                    </div>
+                )}
+
                 <Group
                     orientation={orientation}
                     id="workspace-layout"
@@ -119,6 +243,9 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
                                 initialData={initialCanvas}
                                 theme="dark"
                                 onAiPrompt={handleAiPrompt}
+                                onChange={handleCanvasChange}
+                                onPointerUpdate={handlePointerUpdate}
+                                collaborators={excalidrawCollaborators}
                             />
                         </div>
                     </Panel>
@@ -140,6 +267,7 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
                             <ChatPanel
                                 ref={chatRef}
                                 className="h-full"
+                                projectId={projectId}
                                 initialMessages={initialChat}
                                 messagesRef={chatMessagesRef}
                                 getExcalidrawScene={getScene}
