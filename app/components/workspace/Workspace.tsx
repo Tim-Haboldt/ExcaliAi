@@ -3,6 +3,7 @@
 import { useCallback, useRef } from "react";
 import { ChatPanel } from "../chat/ChatPanel";
 import { ExcalidrawCanvas } from "../excalidraw/ExcalidrawCanvas";
+import { excalidrawSceneSchema } from "../excalidraw/excalidrawSceneSchema";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 export function Workspace() {
@@ -20,12 +21,26 @@ export function Workspace() {
         if (!api) return null;
 
         const { serializeAsJSON } = await import("@excalidraw/excalidraw");
-        return serializeAsJSON(
+        const json = serializeAsJSON(
             api.getSceneElements(),
             api.getAppState(),
             api.getFiles(),
             "local",
         );
+
+        const result = excalidrawSceneSchema.safeParse(JSON.parse(json));
+        if (!result.success) {
+            console.error(
+                "Excalidraw scene schema mismatch on export:",
+                result.error,
+            );
+            alert(
+                "Excalidraw scene schema mismatch - the exported scene does not match the expected schema. " +
+                    "Check the console for details and update excalidrawSceneSchema.ts.",
+            );
+        }
+
+        return json;
     }, []);
 
     const updateExcalidrawScene = useCallback(async (json: string) => {
@@ -36,8 +51,12 @@ export function Workspace() {
             "@excalidraw/excalidraw"
         );
 
-        const data = JSON.parse(json);
-        const restored = restore(data, null, null);
+        const data = excalidrawSceneSchema.parse(JSON.parse(json));
+        const restored = restore(
+            data as Parameters<typeof restore>[0],
+            null,
+            null,
+        );
 
         api.updateScene({
             elements: restored.elements,
