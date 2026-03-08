@@ -24,3 +24,17 @@ body {
     color: var(--foreground);
     font-family: Arial, Helvetica, sans-serif;
 }
+
+.panel-resize-handle {
+    background: color-mix(in srgb, var(--foreground) 4%, transparent);
+    border-inline: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+    transition: background-color 120ms ease;
+}
+
+.panel-resize-handle:hover {
+    background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.panel-resize-handle:active {
+    background: color-mix(in srgb, var(--foreground) 12%, transparent);
+}

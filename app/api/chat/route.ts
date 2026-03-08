@@ -15,7 +15,14 @@ import {
     simplifySceneForContext,
 } from "@/lib/ai/excalidraw-ai-schema";
 
-const EMPTY_TOOL_INPUT: Record<string, unknown> = {};
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return (
+        value !== null &&
+        value !== undefined &&
+        typeof value === "object" &&
+        !Array.isArray(value)
+    );
+}
 
 function ensureToolInputsAreObjects(
     messages: ModelMessage[],
@@ -29,21 +36,30 @@ function ensureToolInputsAreObjects(
             return message;
         }
 
+        let changed = false;
         const sanitizedContent = message.content.map((part) => {
             if (part.type !== "tool-call") {
                 return part;
             }
 
-            if (
-                part.input !== null &&
-                typeof part.input === "object" &&
-                !Array.isArray(part.input)
-            ) {
+            if (isPlainObject(part.input)) {
                 return part;
             }
 
-            return { ...part, input: EMPTY_TOOL_INPUT };
+            console.warn(
+                "[chat] Replaced invalid tool-call input (%s) for %s",
+                typeof part.input,
+                "toolName" in part ? part.toolName : "unknown",
+            );
+
+            changed = true;
+
+            return { ...part, input: {} };
         });
+
+        if (!changed) {
+            return message;
+        }
 
         return { ...message, content: sanitizedContent };
     });
@@ -140,6 +156,9 @@ export async function POST(req: Request) {
             messages: modelMessages,
             tools,
             stopWhen: stepCountIs(5),
+            prepareStep: ({ messages: stepMessages }) => ({
+                messages: ensureToolInputsAreObjects(stepMessages),
+            }),
         });
 
         return result.toUIMessageStreamResponse();
