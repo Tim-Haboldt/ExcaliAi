@@ -18,48 +18,48 @@ alwaysApply: true
 ```typescript
 // Bad: nested logic, single-line if, no whitespace grouping
 function process(input: string | null) {
-  if (input) {
-    const t = input.trim();
-    if (t.length > 0) return t.toUpperCase();
-  }
-  return "";
+    if (input) {
+        const t = input.trim();
+        if (t.length > 0) return t.toUpperCase();
+    }
+    return "";
 }
 
 // Good: early returns, descriptive names, grouped sections, blank line before return
 function process(input: string | null) {
-  if (!input) {
-    return "";
-  }
+    if (!input) {
+        return "";
+    }
 
-  const trimmed = input.trim();
-  if (trimmed.length === 0) {
-    return "";
-  }
+    const trimmed = input.trim();
+    if (trimmed.length === 0) {
+        return "";
+    }
 
-  return trimmed.toUpperCase();
+    return trimmed.toUpperCase();
 }
 ```
 
 ```typescript
 // Bad: chained if/else if
 if (status === "idle") {
-  handleIdle();
+    handleIdle();
 } else if (status === "loading") {
-  handleLoading();
+    handleLoading();
 } else if (status === "error") {
-  handleError();
+    handleError();
 }
 
 // Good: switch/case
 switch (status) {
-  case "idle":
-    handleIdle();
-    break;
-  case "loading":
-    handleLoading();
-    break;
-  case "error":
-    handleError();
-    break;
+    case "idle":
+        handleIdle();
+        break;
+    case "loading":
+        handleLoading();
+        break;
+    case "error":
+        handleError();
+        break;
 }
 ```
