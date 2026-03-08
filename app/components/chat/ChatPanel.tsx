@@ -1,8 +1,14 @@
 "use client";
 
-import { useChat } from "@ai-sdk/react";
+import { useChat, type UIMessage } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    type MutableRefObject,
+} from "react";
 import { ChatComposer } from "./ChatComposer";
 import { ChatMessageList } from "./ChatMessageList";
 import {
@@ -13,6 +19,8 @@ import {
 
 type ChatPanelProps = {
     className?: string;
+    initialMessages?: UIMessage[];
+    messagesRef?: MutableRefObject<UIMessage[]>;
     getExcalidrawScene?: () => Promise<string | null>;
     getExcalidrawPng?: () => Promise<string | null>;
     updateExcalidrawScene?: (json: string) => Promise<void>;
@@ -55,6 +63,8 @@ function isReadyToolCall(toolPart: ToolCallPart): boolean {
 
 export function ChatPanel({
     className,
+    initialMessages,
+    messagesRef,
     getExcalidrawScene,
     getExcalidrawPng,
     updateExcalidrawScene,
@@ -109,11 +119,16 @@ export function ChatPanel({
     );
 
     const { messages, sendMessage, status, error, clearError } = useChat({
+        messages: initialMessages,
         transport,
         onError(chatError) {
             console.error("Chat error:", chatError);
         },
     });
+
+    if (messagesRef) {
+        messagesRef.current = messages;
+    }
 
     const appliedToolCalls = useRef(new Set<string>());
 

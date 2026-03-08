@@ -4,6 +4,9 @@ const aiProviderSchema = z.enum(["openai", "anthropic", "google"]);
 
 const envSchema = z
     .object({
+        NODE_ENV: z.enum(["development", "production"]),
+        DATABASE_URL: z.string(),
+        SESSION_SECRET: z.string().min(32),
         AI_PROVIDER: aiProviderSchema,
         AI_MODEL: z.string(),
         OPENAI_API_KEY: z.string().optional(),

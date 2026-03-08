@@ -19,13 +19,24 @@
             "pre-commit": "pnpm prettier"
         }
     },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "prisma",
+            "@prisma/engines"
+        ]
+    },
     "dependencies": {
         "@ai-sdk/anthropic": "3.0.58",
         "@ai-sdk/google": "3.0.43",
         "@ai-sdk/openai": "3.0.41",
         "@ai-sdk/react": "3.0.118",
         "@excalidraw/excalidraw": "0.18.0",
+        "@prisma/adapter-pg": "7.4.2",
+        "@prisma/client": "7.4.2",
         "ai": "6.0.116",
+        "dotenv": "17.3.1",
+        "iron-session": "8.0.4",
+        "lucide-react": "0.577.0",
         "next": "16.1.6",
         "react": "19.2.3",
         "react-dom": "19.2.3",
@@ -41,6 +52,7 @@
         "eslint-config-next": "16.1.6",
         "husky": "9.1.7",
         "prettier": "3.8.1",
+        "prisma": "7.4.2",
         "tailwindcss": "4.2.1",
         "typescript": "5.9.3"
     }
