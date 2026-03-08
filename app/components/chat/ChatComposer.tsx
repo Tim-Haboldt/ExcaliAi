@@ -13,8 +13,11 @@ export function ChatComposer({ onSend, className, disabled }: Props) {
 
     const submit = useCallback(async () => {
         if (disabled) return;
+        
         const content = value;
+
         setValue("");
+
         await onSend(content);
     }, [onSend, value, disabled]);
 

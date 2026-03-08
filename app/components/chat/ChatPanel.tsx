@@ -7,22 +7,41 @@ import { ChatComposer } from "./ChatComposer";
 import { ChatMessageList } from "./ChatMessageList";
 import {
     type AiCanvasUpdate,
+    type AiElement,
     convertAiToExcalidrawScene,
 } from "@/lib/ai/excalidraw-ai-schema";
 
 type Props = {
     className?: string;
     getExcalidrawScene?: () => Promise<string | null>;
+    getExcalidrawPng?: () => Promise<string | null>;
     updateExcalidrawScene?: (json: string) => Promise<void>;
+    updateExcalidrawElements?: (elements: AiElement[]) => Promise<void>;
+    deleteExcalidrawElements?: (elementIds: string[]) => Promise<void>;
 };
 
 export function ChatPanel({
     className,
     getExcalidrawScene,
+    getExcalidrawPng,
     updateExcalidrawScene,
+    updateExcalidrawElements,
+    deleteExcalidrawElements,
 }: Props) {
     const getSceneRef = useRef(getExcalidrawScene);
     getSceneRef.current = getExcalidrawScene;
+
+    const getPngRef = useRef(getExcalidrawPng);
+    getPngRef.current = getExcalidrawPng;
+
+    const updateSceneRef = useRef(updateExcalidrawScene);
+    updateSceneRef.current = updateExcalidrawScene;
+
+    const updateElementsRef = useRef(updateExcalidrawElements);
+    updateElementsRef.current = updateExcalidrawElements;
+
+    const deleteElementsRef = useRef(deleteExcalidrawElements);
+    deleteElementsRef.current = deleteExcalidrawElements;
 
     const transport = useMemo(
         () =>
@@ -34,13 +53,20 @@ export function ChatPanel({
                     body,
                 }) => {
                     let scene: string | null = null;
+                    let png: string | null = null;
                     try {
-                        scene = (await getSceneRef.current?.()) ?? null;
+                        [scene, png] = await Promise.all([
+                            getSceneRef.current?.() ?? null,
+                            getPngRef.current?.() ?? null,
+                        ]);
                     } catch (e) {
-                        console.warn("Failed to get scene for context:", e);
+                        console.warn(
+                            "Failed to get scene/png for context:",
+                            e,
+                        );
                     }
                     return {
-                        body: { ...body, id, messages, scene },
+                        body: { ...body, id, messages, scene, png },
                     };
                 },
             }),
@@ -61,27 +87,56 @@ export function ChatPanel({
             for (const part of msg.parts) {
                 const p = part as Record<string, unknown>;
                 if (
-                    typeof p.type === "string" &&
-                    p.type === "tool-updateCanvas" &&
-                    typeof p.toolCallId === "string" &&
-                    (p.state === "input-available" ||
-                        p.state === "output-available") &&
-                    p.input &&
-                    !appliedToolCalls.current.has(p.toolCallId)
-                ) {
+                    typeof p.type !== "string" ||
+                    typeof p.toolCallId !== "string"
+                )
+                    continue;
+                if (
+                    p.state !== "input-available" &&
+                    p.state !== "output-available"
+                )
+                    continue;
+                if (appliedToolCalls.current.has(p.toolCallId)) continue;
+                if (!p.input) continue;
+
+                const input = p.input as Record<string, unknown>;
+
+                if (p.type === "tool-updateCanvas") {
                     appliedToolCalls.current.add(p.toolCallId);
                     try {
                         const scene = convertAiToExcalidrawScene(
-                            p.input as AiCanvasUpdate,
+                            input as AiCanvasUpdate,
                         );
-                        void updateExcalidrawScene?.(JSON.stringify(scene));
+                        void updateSceneRef.current?.(JSON.stringify(scene));
                     } catch (e) {
                         console.error("Failed to apply canvas update:", e);
                     }
                 }
+
+                if (p.type === "tool-updateElements") {
+                    appliedToolCalls.current.add(p.toolCallId);
+                    try {
+                        void updateElementsRef.current?.(
+                            input.elements as AiElement[],
+                        );
+                    } catch (e) {
+                        console.error("Failed to apply element update:", e);
+                    }
+                }
+
+                if (p.type === "tool-deleteElements") {
+                    appliedToolCalls.current.add(p.toolCallId);
+                    try {
+                        void deleteElementsRef.current?.(
+                            input.elementIds as string[],
+                        );
+                    } catch (e) {
+                        console.error("Failed to delete elements:", e);
+                    }
+                }
             }
         }
-    }, [messages, updateExcalidrawScene]);
+    }, [messages]);
 
     const handleSend = useCallback(
         async (content: string) => {

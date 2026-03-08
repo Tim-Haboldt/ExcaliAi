@@ -59,6 +59,18 @@ export const aiCanvasUpdateSchema = z.object({
 
 export type AiCanvasUpdate = z.infer<typeof aiCanvasUpdateSchema>;
 
+export const aiUpdateElementsSchema = z.object({
+    elements: z.array(aiElementSchema),
+});
+
+export type AiUpdateElements = z.infer<typeof aiUpdateElementsSchema>;
+
+export const aiDeleteElementsSchema = z.object({
+    elementIds: z.array(z.string()),
+});
+
+export type AiDeleteElements = z.infer<typeof aiDeleteElementsSchema>;
+
 // ---------------------------------------------------------------------------
 // AI schema → Excalidraw scene conversion
 // ---------------------------------------------------------------------------
@@ -77,107 +89,106 @@ function getRoundness(
     return null;
 }
 
+export function convertAiElementToExcalidraw(el: AiElement) {
+    const base = {
+        id: el.id,
+        type: el.type as string,
+        x: el.x,
+        y: el.y,
+        width: el.width,
+        height: el.height,
+        angle: el.angle ?? 0,
+        strokeColor: el.strokeColor ?? "#1e1e1e",
+        backgroundColor: el.backgroundColor ?? "transparent",
+        fillStyle: el.fillStyle ?? "solid",
+        strokeWidth: el.strokeWidth ?? 2,
+        strokeStyle: el.strokeStyle ?? "solid",
+        roundness: getRoundness(el.type),
+        roughness: el.roughness ?? 1,
+        opacity: el.opacity ?? 100,
+        seed: randomSeed(),
+        version: 1,
+        versionNonce: randomSeed(),
+        index: null as string | null,
+        frameId: null as string | null,
+        isDeleted: false,
+        groupIds: el.groupIds ?? [],
+        boundElements: null,
+        updated: Date.now(),
+        link: null,
+        locked: false,
+    };
+
+    switch (el.type) {
+        case "text":
+            return {
+                ...base,
+                text: el.text ?? "",
+                fontSize: el.fontSize ?? 20,
+                fontFamily: el.fontFamily ?? 1,
+                textAlign: el.textAlign ?? "left",
+                verticalAlign: el.verticalAlign ?? "top",
+                containerId: null,
+                originalText: el.text ?? "",
+                autoResize: true,
+                lineHeight: el.lineHeight ?? 1.25,
+            };
+
+        case "line":
+            return {
+                ...base,
+                points: (
+                    el.points ?? [
+                        [0, 0],
+                        [el.width, el.height],
+                    ]
+                ).map((p) => [p[0] ?? 0, p[1] ?? 0]),
+                lastCommittedPoint: null,
+                startBinding: null,
+                endBinding: null,
+            };
+
+        case "arrow":
+            return {
+                ...base,
+                points: (
+                    el.points ?? [
+                        [0, 0],
+                        [el.width, el.height],
+                    ]
+                ).map((p) => [p[0] ?? 0, p[1] ?? 0]),
+                lastCommittedPoint: null,
+                startBinding: null,
+                endBinding: null,
+                startArrowhead: el.startArrowhead ?? null,
+                endArrowhead: el.endArrowhead ?? "arrow",
+            };
+
+        case "freedraw":
+            return {
+                ...base,
+                points: (el.points ?? []).map((p) => [p[0] ?? 0, p[1] ?? 0]),
+                pressures: [],
+                simulatePressure: true,
+                lastCommittedPoint: null,
+            };
+
+        case "frame":
+            return {
+                ...base,
+                name: el.name ?? null,
+            };
+
+        default:
+            return base;
+    }
+}
+
 export function convertAiToExcalidrawScene(update: AiCanvasUpdate) {
-    const elements = update.elements.map((el) => {
-        const base = {
-            id: el.id,
-            type: el.type as string,
-            x: el.x,
-            y: el.y,
-            width: el.width,
-            height: el.height,
-            angle: el.angle ?? 0,
-            strokeColor: el.strokeColor ?? "#1e1e1e",
-            backgroundColor: el.backgroundColor ?? "transparent",
-            fillStyle: el.fillStyle ?? "solid",
-            strokeWidth: el.strokeWidth ?? 2,
-            strokeStyle: el.strokeStyle ?? "solid",
-            roundness: getRoundness(el.type),
-            roughness: el.roughness ?? 1,
-            opacity: el.opacity ?? 100,
-            seed: randomSeed(),
-            version: 1,
-            versionNonce: randomSeed(),
-            isDeleted: false,
-            groupIds: el.groupIds ?? [],
-            boundElements: null,
-            updated: Date.now(),
-            link: null,
-            locked: false,
-        };
-
-        switch (el.type) {
-            case "text":
-                return {
-                    ...base,
-                    text: el.text ?? "",
-                    fontSize: el.fontSize ?? 20,
-                    fontFamily: el.fontFamily ?? 1,
-                    textAlign: el.textAlign ?? "left",
-                    verticalAlign: el.verticalAlign ?? "top",
-                    containerId: null,
-                    originalText: el.text ?? "",
-                    autoResize: true,
-                    lineHeight: el.lineHeight ?? 1.25,
-                };
-
-            case "line":
-                return {
-                    ...base,
-                    points: (
-                        el.points ?? [
-                            [0, 0],
-                            [el.width, el.height],
-                        ]
-                    ).map((p) => [p[0] ?? 0, p[1] ?? 0]),
-                    lastCommittedPoint: null,
-                    startBinding: null,
-                    endBinding: null,
-                };
-
-            case "arrow":
-                return {
-                    ...base,
-                    points: (
-                        el.points ?? [
-                            [0, 0],
-                            [el.width, el.height],
-                        ]
-                    ).map((p) => [p[0] ?? 0, p[1] ?? 0]),
-                    lastCommittedPoint: null,
-                    startBinding: null,
-                    endBinding: null,
-                    startArrowhead: el.startArrowhead ?? null,
-                    endArrowhead: el.endArrowhead ?? "arrow",
-                };
-
-            case "freedraw":
-                return {
-                    ...base,
-                    points: (el.points ?? []).map((p) => [
-                        p[0] ?? 0,
-                        p[1] ?? 0,
-                    ]),
-                    pressures: [],
-                    simulatePressure: true,
-                    lastCommittedPoint: null,
-                };
-
-            case "frame":
-                return {
-                    ...base,
-                    name: el.name ?? null,
-                };
-
-            default:
-                return base;
-        }
-    });
-
     return {
         type: "excalidraw" as const,
         version: 2,
-        elements,
+        elements: update.elements.map(convertAiElementToExcalidraw),
         appState: {
             viewBackgroundColor: update.viewBackgroundColor ?? "#ffffff",
         },

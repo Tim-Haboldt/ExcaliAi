@@ -47,6 +47,25 @@ export function ChatMessageList({ messages, className, isLoading }: Props) {
     );
 }
 
+const TOOL_LABELS: Record<string, [string, string, string]> = {
+    "tool-getCanvas": ["Reading canvas\u2026", "Canvas read", "Failed to read canvas"],
+    "tool-getCanvasPng": ["Taking screenshot\u2026", "Screenshot taken", "Screenshot failed"],
+    "tool-updateCanvas": ["Updating canvas\u2026", "Canvas updated", "Canvas update failed"],
+    "tool-updateElements": ["Updating elements\u2026", "Elements updated", "Element update failed"],
+    "tool-deleteElements": ["Deleting elements\u2026", "Elements deleted", "Element deletion failed"],
+};
+
+function getToolLabel(toolType: string, isDone: boolean, isError: boolean): string {
+    const labels = TOOL_LABELS[toolType];
+    if (!labels) {
+        const name = toolType.replace("tool-", "");
+        if (isError) return `${name} failed`;
+        return isDone ? `${name} done` : `${name}\u2026`;
+    }
+    if (isError) return labels[2];
+    return isDone ? labels[1] : labels[0];
+}
+
 function MessageContent({ message }: { message: UIMessage }) {
     if (!message.parts || message.parts.length === 0) return null;
 
@@ -70,6 +89,11 @@ function MessageContent({ message }: { message: UIMessage }) {
                     const state = p.state as string;
                     const isDone = state === "output-available";
                     const isError = state === "output-error";
+                    const label = getToolLabel(
+                        p.type,
+                        isDone,
+                        isError,
+                    );
                     return (
                         <div
                             key={i}
@@ -86,13 +110,7 @@ function MessageContent({ message }: { message: UIMessage }) {
                                       ? "\u2717"
                                       : "\u27F3"}
                             </span>
-                            <span>
-                                {isDone
-                                    ? "Canvas updated"
-                                    : isError
-                                      ? "Canvas update failed"
-                                      : "Updating canvas\u2026"}
-                            </span>
+                            <span>{label}</span>
                         </div>
                     );
                 }
