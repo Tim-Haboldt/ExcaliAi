@@ -17,8 +17,10 @@ function buildTools(scene: string | null, png: string | null) {
                 "Call this to see what elements are on the canvas before making changes.",
             inputSchema: z.object({}),
             execute: async () => {
-                if (!scene)
+                if (!scene) {
                     return { canvas: null, message: "Canvas is empty." };
+                }
+
                 return { canvas: simplifySceneForContext(scene) };
             },
         }),
@@ -29,11 +31,13 @@ function buildTools(scene: string | null, png: string | null) {
                 "Call this AFTER making changes, in a separate step.",
             inputSchema: z.object({}),
             execute: async () => {
-                if (!png)
+                if (!png) {
                     return {
                         success: false,
                         message: "No PNG available — canvas may be empty.",
                     };
+                }
+
                 return {
                     success: true,
                     message: "PNG screenshot captured successfully.",
@@ -98,11 +102,13 @@ export async function POST(req: Request) {
         });
 
         return result.toUIMessageStreamResponse();
-    } catch (e) {
-        console.error("Chat API error:", e);
+    } catch (error) {
+        console.error("Chat API error:", error);
+
         return new Response(
             JSON.stringify({
-                error: e instanceof Error ? e.message : "Unknown error",
+                error:
+                    error instanceof Error ? error.message : "Unknown error",
             }),
             { status: 500, headers: { "Content-Type": "application/json" } },
         );

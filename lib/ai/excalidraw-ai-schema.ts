@@ -75,74 +75,143 @@ export type AiDeleteElements = z.infer<typeof aiDeleteElementsSchema>;
 // AI schema → Excalidraw scene conversion
 // ---------------------------------------------------------------------------
 
+interface ExcalidrawBaseElement {
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    angle: number;
+    strokeColor: string;
+    backgroundColor: string;
+    fillStyle: string;
+    strokeWidth: number;
+    strokeStyle: string;
+    roundness: { type: number; value?: number } | null;
+    roughness: number;
+    opacity: number;
+    seed: number;
+    version: number;
+    versionNonce: number;
+    index: string | null;
+    frameId: string | null;
+    isDeleted: boolean;
+    groupIds: string[];
+    boundElements: null;
+    updated: number;
+    link: null;
+    locked: boolean;
+}
+
+interface ParsedSceneElement {
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    isDeleted?: boolean;
+    strokeColor?: string;
+    backgroundColor?: string;
+    fillStyle?: string;
+    opacity?: number;
+    angle?: number;
+    strokeWidth?: number;
+    text?: string;
+    fontSize?: number;
+    points?: number[][];
+    startArrowhead?: string;
+    endArrowhead?: string;
+    name?: string;
+    groupIds?: string[];
+}
+
+interface ParsedScene {
+    elements?: ParsedSceneElement[];
+    appState?: {
+        viewBackgroundColor?: string;
+    };
+}
+
+const SCENE_TYPE = "excalidraw";
+
 function randomSeed(): number {
     return Math.floor(Math.random() * 2_147_483_647);
 }
 
 function getRoundness(
-    type: string,
+    elementType: string,
 ): { type: number; value?: number } | null {
-    if (type === "diamond" || type === "line" || type === "arrow")
-        return { type: 2 };
-    if (["rectangle", "ellipse", "image", "frame"].includes(type))
-        return { type: 3 };
-    return null;
+    switch (elementType) {
+        case "diamond":
+        case "line":
+        case "arrow":
+            return { type: 2 };
+        case "rectangle":
+        case "ellipse":
+        case "image":
+        case "frame":
+            return { type: 3 };
+        default:
+            return null;
+    }
 }
 
-export function convertAiElementToExcalidraw(el: AiElement) {
-    const base = {
-        id: el.id,
-        type: el.type as string,
-        x: el.x,
-        y: el.y,
-        width: el.width,
-        height: el.height,
-        angle: el.angle ?? 0,
-        strokeColor: el.strokeColor ?? "#1e1e1e",
-        backgroundColor: el.backgroundColor ?? "transparent",
-        fillStyle: el.fillStyle ?? "solid",
-        strokeWidth: el.strokeWidth ?? 2,
-        strokeStyle: el.strokeStyle ?? "solid",
-        roundness: getRoundness(el.type),
-        roughness: el.roughness ?? 1,
-        opacity: el.opacity ?? 100,
+export function convertAiElementToExcalidraw(element: AiElement) {
+    const base: ExcalidrawBaseElement = {
+        id: element.id,
+        type: element.type,
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
+        angle: element.angle ?? 0,
+        strokeColor: element.strokeColor ?? "#1e1e1e",
+        backgroundColor: element.backgroundColor ?? "transparent",
+        fillStyle: element.fillStyle ?? "solid",
+        strokeWidth: element.strokeWidth ?? 2,
+        strokeStyle: element.strokeStyle ?? "solid",
+        roundness: getRoundness(element.type),
+        roughness: element.roughness ?? 1,
+        opacity: element.opacity ?? 100,
         seed: randomSeed(),
         version: 1,
         versionNonce: randomSeed(),
-        index: null as string | null,
-        frameId: null as string | null,
+        index: null,
+        frameId: null,
         isDeleted: false,
-        groupIds: el.groupIds ?? [],
+        groupIds: element.groupIds ?? [],
         boundElements: null,
         updated: Date.now(),
         link: null,
         locked: false,
     };
 
-    switch (el.type) {
+    switch (element.type) {
         case "text":
             return {
                 ...base,
-                text: el.text ?? "",
-                fontSize: el.fontSize ?? 20,
-                fontFamily: el.fontFamily ?? 1,
-                textAlign: el.textAlign ?? "left",
-                verticalAlign: el.verticalAlign ?? "top",
+                text: element.text ?? "",
+                fontSize: element.fontSize ?? 20,
+                fontFamily: element.fontFamily ?? 1,
+                textAlign: element.textAlign ?? "left",
+                verticalAlign: element.verticalAlign ?? "top",
                 containerId: null,
-                originalText: el.text ?? "",
+                originalText: element.text ?? "",
                 autoResize: true,
-                lineHeight: el.lineHeight ?? 1.25,
+                lineHeight: element.lineHeight ?? 1.25,
             };
 
         case "line":
             return {
                 ...base,
                 points: (
-                    el.points ?? [
+                    element.points ?? [
                         [0, 0],
-                        [el.width, el.height],
+                        [element.width, element.height],
                     ]
-                ).map((p) => [p[0] ?? 0, p[1] ?? 0]),
+                ).map((point) => [point[0] ?? 0, point[1] ?? 0]),
                 lastCommittedPoint: null,
                 startBinding: null,
                 endBinding: null,
@@ -152,22 +221,25 @@ export function convertAiElementToExcalidraw(el: AiElement) {
             return {
                 ...base,
                 points: (
-                    el.points ?? [
+                    element.points ?? [
                         [0, 0],
-                        [el.width, el.height],
+                        [element.width, element.height],
                     ]
-                ).map((p) => [p[0] ?? 0, p[1] ?? 0]),
+                ).map((point) => [point[0] ?? 0, point[1] ?? 0]),
                 lastCommittedPoint: null,
                 startBinding: null,
                 endBinding: null,
-                startArrowhead: el.startArrowhead ?? null,
-                endArrowhead: el.endArrowhead ?? "arrow",
+                startArrowhead: element.startArrowhead ?? null,
+                endArrowhead: element.endArrowhead ?? "arrow",
             };
 
         case "freedraw":
             return {
                 ...base,
-                points: (el.points ?? []).map((p) => [p[0] ?? 0, p[1] ?? 0]),
+                points: (element.points ?? []).map((point) => [
+                    point[0] ?? 0,
+                    point[1] ?? 0,
+                ]),
                 pressures: [],
                 simulatePressure: true,
                 lastCommittedPoint: null,
@@ -176,7 +248,7 @@ export function convertAiElementToExcalidraw(el: AiElement) {
         case "frame":
             return {
                 ...base,
-                name: el.name ?? null,
+                name: element.name ?? null,
             };
 
         default:
@@ -186,7 +258,7 @@ export function convertAiElementToExcalidraw(el: AiElement) {
 
 export function convertAiToExcalidrawScene(update: AiCanvasUpdate) {
     return {
-        type: "excalidraw" as const,
+        type: SCENE_TYPE,
         version: 2,
         elements: update.elements.map(convertAiElementToExcalidraw),
         appState: {
@@ -201,57 +273,72 @@ export function convertAiToExcalidrawScene(update: AiCanvasUpdate) {
 
 export function simplifySceneForContext(sceneJson: string): string {
     try {
-        const scene = JSON.parse(sceneJson);
+        const scene: ParsedScene = JSON.parse(sceneJson);
+
         const elements = (scene.elements ?? [])
-            .filter((el: Record<string, unknown>) => !el.isDeleted)
-            .map((el: Record<string, unknown>) => {
+            .filter((element) => !element.isDeleted)
+            .map((element) => {
                 const simplified: Record<string, unknown> = {
-                    id: el.id,
-                    type: el.type,
-                    x: Math.round(el.x as number),
-                    y: Math.round(el.y as number),
-                    width: Math.round(el.width as number),
-                    height: Math.round(el.height as number),
+                    id: element.id,
+                    type: element.type,
+                    x: Math.round(element.x),
+                    y: Math.round(element.y),
+                    width: Math.round(element.width),
+                    height: Math.round(element.height),
                 };
 
-                if (el.strokeColor && el.strokeColor !== "#1e1e1e")
-                    simplified.strokeColor = el.strokeColor;
+                if (element.strokeColor && element.strokeColor !== "#1e1e1e") {
+                    simplified.strokeColor = element.strokeColor;
+                }
                 if (
-                    el.backgroundColor &&
-                    el.backgroundColor !== "transparent"
-                )
-                    simplified.backgroundColor = el.backgroundColor;
-                if (el.fillStyle && el.fillStyle !== "solid")
-                    simplified.fillStyle = el.fillStyle;
-                if (el.opacity !== undefined && el.opacity !== 100)
-                    simplified.opacity = el.opacity;
-                if (el.angle && el.angle !== 0) simplified.angle = el.angle;
-                if (el.strokeWidth && el.strokeWidth !== 2)
-                    simplified.strokeWidth = el.strokeWidth;
-
-                if (el.type === "text") {
-                    simplified.text = el.text;
-                    simplified.fontSize = el.fontSize;
+                    element.backgroundColor &&
+                    element.backgroundColor !== "transparent"
+                ) {
+                    simplified.backgroundColor = element.backgroundColor;
+                }
+                if (element.fillStyle && element.fillStyle !== "solid") {
+                    simplified.fillStyle = element.fillStyle;
+                }
+                if (element.opacity !== undefined && element.opacity !== 100) {
+                    simplified.opacity = element.opacity;
+                }
+                if (element.angle && element.angle !== 0) {
+                    simplified.angle = element.angle;
+                }
+                if (element.strokeWidth && element.strokeWidth !== 2) {
+                    simplified.strokeWidth = element.strokeWidth;
                 }
 
-                if (el.type === "line" || el.type === "arrow") {
-                    simplified.points = el.points;
-                    if (el.type === "arrow") {
-                        if (el.startArrowhead)
-                            simplified.startArrowhead = el.startArrowhead;
-                        if (el.endArrowhead)
-                            simplified.endArrowhead = el.endArrowhead;
-                    }
+                switch (element.type) {
+                    case "text":
+                        simplified.text = element.text;
+                        simplified.fontSize = element.fontSize;
+                        break;
+                    case "arrow":
+                        if (element.startArrowhead) {
+                            simplified.startArrowhead =
+                                element.startArrowhead;
+                        }
+                        if (element.endArrowhead) {
+                            simplified.endArrowhead = element.endArrowhead;
+                        }
+                        // falls through
+                    case "line":
+                        simplified.points = element.points;
+                        break;
+                    case "frame":
+                        if (element.name) {
+                            simplified.name = element.name;
+                        }
+                        break;
                 }
 
-                if (el.type === "frame" && el.name)
-                    simplified.name = el.name;
-
                 if (
-                    Array.isArray(el.groupIds) &&
-                    (el.groupIds as string[]).length > 0
-                )
-                    simplified.groupIds = el.groupIds;
+                    Array.isArray(element.groupIds) &&
+                    element.groupIds.length > 0
+                ) {
+                    simplified.groupIds = element.groupIds;
+                }
 
                 return simplified;
             });
