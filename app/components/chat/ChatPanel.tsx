@@ -11,7 +11,7 @@ import {
     convertAiToExcalidrawScene,
 } from "@/lib/ai/excalidraw-ai-schema";
 
-type Props = {
+type ChatPanelProps = {
     className?: string;
     getExcalidrawScene?: () => Promise<string | null>;
     getExcalidrawPng?: () => Promise<string | null>;
@@ -20,6 +20,39 @@ type Props = {
     deleteExcalidrawElements?: (elementIds: string[]) => Promise<void>;
 };
 
+type ToolCallPart = {
+    type: string;
+    toolCallId: string;
+    state: string;
+    input?: Record<string, unknown>;
+};
+
+function isToolCallPart(part: unknown): part is ToolCallPart {
+    if (typeof part !== "object" || part === null) {
+        return false;
+    }
+
+    const hasRequiredFields =
+        "type" in part && "toolCallId" in part && "state" in part;
+
+    if (!hasRequiredFields) {
+        return false;
+    }
+
+    return (
+        typeof part.type === "string" &&
+        typeof part.toolCallId === "string" &&
+        typeof part.state === "string"
+    );
+}
+
+function isReadyToolCall(toolPart: ToolCallPart): boolean {
+    return (
+        toolPart.state === "input-available" ||
+        toolPart.state === "output-available"
+    );
+}
+
 export function ChatPanel({
     className,
     getExcalidrawScene,
@@ -27,7 +60,7 @@ export function ChatPanel({
     updateExcalidrawScene,
     updateExcalidrawElements,
     deleteExcalidrawElements,
-}: Props) {
+}: ChatPanelProps) {
     const getSceneRef = useRef(getExcalidrawScene);
     getSceneRef.current = getExcalidrawScene;
 
@@ -54,17 +87,19 @@ export function ChatPanel({
                 }) => {
                     let scene: string | null = null;
                     let png: string | null = null;
+
                     try {
                         [scene, png] = await Promise.all([
                             getSceneRef.current?.() ?? null,
                             getPngRef.current?.() ?? null,
                         ]);
-                    } catch (e) {
+                    } catch (fetchError) {
                         console.warn(
                             "Failed to get scene/png for context:",
-                            e,
+                            fetchError,
                         );
                     }
+
                     return {
                         body: { ...body, id, messages, scene, png },
                     };
@@ -75,63 +110,80 @@ export function ChatPanel({
 
     const { messages, sendMessage, status, error, clearError } = useChat({
         transport,
-        onError(err) {
-            console.error("Chat error:", err);
+        onError(chatError) {
+            console.error("Chat error:", chatError);
         },
     });
 
     const appliedToolCalls = useRef(new Set<string>());
+
     useEffect(() => {
-        for (const msg of messages) {
-            if (msg.role !== "assistant") continue;
-            for (const part of msg.parts) {
-                const p = part as Record<string, unknown>;
-                if (
-                    typeof p.type !== "string" ||
-                    typeof p.toolCallId !== "string"
-                )
-                    continue;
-                if (
-                    p.state !== "input-available" &&
-                    p.state !== "output-available"
-                )
-                    continue;
-                if (appliedToolCalls.current.has(p.toolCallId)) continue;
-                if (!p.input) continue;
+        for (const message of messages) {
+            if (message.role !== "assistant") {
+                continue;
+            }
 
-                const input = p.input as Record<string, unknown>;
-
-                if (p.type === "tool-updateCanvas") {
-                    appliedToolCalls.current.add(p.toolCallId);
-                    try {
-                        const scene = convertAiToExcalidrawScene(
-                            input as AiCanvasUpdate,
-                        );
-                        void updateSceneRef.current?.(JSON.stringify(scene));
-                    } catch (e) {
-                        console.error("Failed to apply canvas update:", e);
-                    }
+            for (const part of message.parts) {
+                if (!isToolCallPart(part)) {
+                    continue;
                 }
 
-                if (p.type === "tool-updateElements") {
-                    appliedToolCalls.current.add(p.toolCallId);
-                    try {
-                        void updateElementsRef.current?.(
-                            input.elements as AiElement[],
-                        );
-                    } catch (e) {
-                        console.error("Failed to apply element update:", e);
-                    }
+                if (!isReadyToolCall(part)) {
+                    continue;
                 }
 
-                if (p.type === "tool-deleteElements") {
-                    appliedToolCalls.current.add(p.toolCallId);
-                    try {
-                        void deleteElementsRef.current?.(
-                            input.elementIds as string[],
-                        );
-                    } catch (e) {
-                        console.error("Failed to delete elements:", e);
+                if (appliedToolCalls.current.has(part.toolCallId)) {
+                    continue;
+                }
+
+                if (!part.input) {
+                    continue;
+                }
+
+                appliedToolCalls.current.add(part.toolCallId);
+
+                switch (part.type) {
+                    case "tool-updateCanvas": {
+                        try {
+                            const scene = convertAiToExcalidrawScene(
+                                part.input as AiCanvasUpdate,
+                            );
+                            void updateSceneRef.current?.(
+                                JSON.stringify(scene),
+                            );
+                        } catch (conversionError) {
+                            console.error(
+                                "Failed to apply canvas update:",
+                                conversionError,
+                            );
+                        }
+                        break;
+                    }
+                    case "tool-updateElements": {
+                        try {
+                            void updateElementsRef.current?.(
+                                part.input.elements as AiElement[],
+                            );
+                        } catch (updateError) {
+                            console.error(
+                                "Failed to apply element update:",
+                                updateError,
+                            );
+                        }
+                        break;
+                    }
+                    case "tool-deleteElements": {
+                        try {
+                            void deleteElementsRef.current?.(
+                                part.input.elementIds as string[],
+                            );
+                        } catch (deleteError) {
+                            console.error(
+                                "Failed to delete elements:",
+                                deleteError,
+                            );
+                        }
+                        break;
                     }
                 }
             }
@@ -141,7 +193,9 @@ export function ChatPanel({
     const handleSend = useCallback(
         async (content: string) => {
             const trimmed = content.trim();
-            if (!trimmed) return;
+            if (!trimmed) {
+                return;
+            }
 
             if (error) {
                 clearError();
@@ -149,8 +203,8 @@ export function ChatPanel({
 
             try {
                 await sendMessage({ text: trimmed });
-            } catch (e) {
-                console.error("sendMessage failed:", e);
+            } catch (sendError) {
+                console.error("sendMessage failed:", sendError);
             }
         },
         [sendMessage, error, clearError],

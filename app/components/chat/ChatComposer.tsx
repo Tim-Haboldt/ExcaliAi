@@ -2,37 +2,46 @@
 
 import { useCallback, useState } from "react";
 
-type Props = {
+type ChatComposerProps = {
     onSend: (content: string) => void | Promise<void>;
     className?: string;
     disabled?: boolean;
 };
 
-export function ChatComposer({ onSend, className, disabled }: Props) {
+export function ChatComposer({
+    onSend,
+    className,
+    disabled,
+}: ChatComposerProps) {
     const [value, setValue] = useState("");
 
     const submit = useCallback(async () => {
-        if (disabled) return;
-        
-        const content = value;
+        if (disabled) {
+            return;
+        }
 
+        const content = value;
         setValue("");
 
         await onSend(content);
     }, [onSend, value, disabled]);
+
+    const handleKeyDown = (
+        event: React.KeyboardEvent<HTMLTextAreaElement>,
+    ) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            void submit();
+        }
+    };
 
     return (
         <div className={className}>
             <div className="flex items-end gap-2">
                 <textarea
                     value={value}
-                    onChange={(e) => setValue(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            void submit();
-                        }
-                    }}
+                    onChange={(event) => setValue(event.target.value)}
+                    onKeyDown={handleKeyDown}
                     placeholder="Type a message…"
                     rows={2}
                     disabled={disabled}
