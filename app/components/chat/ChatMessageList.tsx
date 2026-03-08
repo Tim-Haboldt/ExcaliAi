@@ -1,13 +1,21 @@
 "use client";
 
-import type { ChatMessage } from "./types";
+import { useEffect, useRef } from "react";
+import type { UIMessage } from "ai";
 
 type Props = {
-    messages: ChatMessage[];
+    messages: UIMessage[];
     className?: string;
+    isLoading?: boolean;
 };
 
-export function ChatMessageList({ messages, className }: Props) {
+export function ChatMessageList({ messages, className, isLoading }: Props) {
+    const bottomRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages, isLoading]);
+
     return (
         <div className={className}>
             <div className="space-y-3">
@@ -21,10 +29,76 @@ export function ChatMessageList({ messages, className }: Props) {
                                 : "mr-auto max-w-[85%] bg-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-50",
                         ].join(" ")}
                     >
-                        <div className="whitespace-pre-wrap">{m.content}</div>
+                        <MessageContent message={m} />
                     </div>
                 ))}
+
+                {isLoading &&
+                    messages.length > 0 &&
+                    messages[messages.length - 1].role === "user" && (
+                        <div className="mr-auto max-w-[85%] animate-pulse rounded-xl bg-zinc-100 px-3 py-2 text-sm leading-6 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+                            Thinking…
+                        </div>
+                    )}
+
+                <div ref={bottomRef} />
             </div>
         </div>
+    );
+}
+
+function MessageContent({ message }: { message: UIMessage }) {
+    if (!message.parts || message.parts.length === 0) return null;
+
+    return (
+        <>
+            {message.parts.map((part, i) => {
+                if (part.type === "text") {
+                    if (!part.text) return null;
+                    return (
+                        <div key={i} className="whitespace-pre-wrap">
+                            {part.text}
+                        </div>
+                    );
+                }
+
+                const p = part as Record<string, unknown>;
+                if (
+                    typeof p.type === "string" &&
+                    p.type.startsWith("tool-")
+                ) {
+                    const state = p.state as string;
+                    const isDone = state === "output-available";
+                    const isError = state === "output-error";
+                    return (
+                        <div
+                            key={i}
+                            className="my-1 flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+                        >
+                            <span
+                                className={
+                                    isDone || isError ? "" : "animate-spin"
+                                }
+                            >
+                                {isDone
+                                    ? "\u2713"
+                                    : isError
+                                      ? "\u2717"
+                                      : "\u27F3"}
+                            </span>
+                            <span>
+                                {isDone
+                                    ? "Canvas updated"
+                                    : isError
+                                      ? "Canvas update failed"
+                                      : "Updating canvas\u2026"}
+                            </span>
+                        </div>
+                    );
+                }
+
+                return null;
+            })}
+        </>
     );
 }
