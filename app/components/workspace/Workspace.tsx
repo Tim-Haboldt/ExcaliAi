@@ -64,13 +64,14 @@ export function Workspace() {
                     collapsedSize={COLLAPSED_SIZE}
                     onResize={handleCanvasResize}
                 >
-                    <div className="h-full w-full overflow-hidden">
-                        {!isCanvasCollapsed && (
-                            <ExcalidrawCanvas
-                                className="h-full w-full"
-                                excalidrawAPI={handleExcalidrawAPI}
-                            />
-                        )}
+                    <div
+                        className="h-full w-full overflow-hidden"
+                        hidden={isCanvasCollapsed}
+                    >
+                        <ExcalidrawCanvas
+                            className="h-full w-full"
+                            excalidrawAPI={handleExcalidrawAPI}
+                        />
                     </div>
                 </Panel>
 
@@ -84,17 +85,18 @@ export function Workspace() {
                     collapsedSize={COLLAPSED_SIZE}
                     onResize={handleChatResize}
                 >
-                    <div className="h-full w-full overflow-hidden">
-                        {!isChatCollapsed && (
-                            <ChatPanel
-                                className="h-full"
-                                getExcalidrawScene={getScene}
-                                getExcalidrawPng={getPng}
-                                updateExcalidrawScene={updateScene}
-                                updateExcalidrawElements={updateElements}
-                                deleteExcalidrawElements={deleteElements}
-                            />
-                        )}
+                    <div
+                        className="h-full w-full overflow-hidden"
+                        hidden={isChatCollapsed}
+                    >
+                        <ChatPanel
+                            className="h-full"
+                            getExcalidrawScene={getScene}
+                            getExcalidrawPng={getPng}
+                            updateExcalidrawScene={updateScene}
+                            updateExcalidrawElements={updateElements}
+                            deleteExcalidrawElements={deleteElements}
+                        />
                     </div>
                 </Panel>
             </Group>
