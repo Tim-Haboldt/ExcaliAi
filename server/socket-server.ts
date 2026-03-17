@@ -45,7 +45,15 @@ function getCollaboratorList(projectId: string): Collaborator[] {
         return [];
     }
 
-    return Array.from(room.values());
+    const uniqueByAccount = new Map<string, Collaborator>();
+    for (const collaborator of room.values()) {
+        const existing = uniqueByAccount.get(collaborator.accountId);
+        if (!existing || (collaborator.pointer && !existing.pointer)) {
+            uniqueByAccount.set(collaborator.accountId, collaborator);
+        }
+    }
+
+    return Array.from(uniqueByAccount.values());
 }
 
 function broadcastPresence(
