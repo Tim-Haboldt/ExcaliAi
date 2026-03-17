@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { UserPlus, X } from "lucide-react";
+import { useSendInvitation } from "@/app/hooks/useInvitations";
 
 interface InviteDialogProps {
     projectId: string;
@@ -10,11 +11,12 @@ interface InviteDialogProps {
 
 export function InviteDialog({ projectId, onClose }: InviteDialogProps) {
     const [username, setUsername] = useState("");
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [feedback, setFeedback] = useState<{
         type: "success" | "error";
         message: string;
     } | null>(null);
+
+    const sendInvitationMutation = useSendInvitation();
 
     const handleSubmit = useCallback(
         async (event: React.FormEvent) => {
@@ -25,42 +27,29 @@ export function InviteDialog({ projectId, onClose }: InviteDialogProps) {
                 return;
             }
 
-            setIsSubmitting(true);
             setFeedback(null);
 
-            try {
-                const response = await fetch("/api/invitations", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        projectId,
-                        username: trimmedUsername,
-                    }),
-                });
+            const result = await sendInvitationMutation.mutateAsync({
+                projectId,
+                username: trimmedUsername,
+            });
 
-                const data = await response.json();
-
-                if (!response.ok) {
-                    setFeedback({ type: "error", message: data.error });
-
-                    return;
-                }
-
-                setFeedback({
-                    type: "success",
-                    message: `Invitation sent to ${trimmedUsername}`,
-                });
-                setUsername("");
-            } catch {
+            if (!result.ok) {
                 setFeedback({
                     type: "error",
-                    message: "Failed to send invitation",
+                    message: result.error ?? "Failed to send invitation",
                 });
-            } finally {
-                setIsSubmitting(false);
+
+                return;
             }
+
+            setFeedback({
+                type: "success",
+                message: `Invitation sent to ${trimmedUsername}`,
+            });
+            setUsername("");
         },
-        [projectId, username],
+        [projectId, username, sendInvitationMutation],
     );
 
     return (
@@ -87,7 +76,7 @@ export function InviteDialog({ projectId, onClose }: InviteDialogProps) {
                         onChange={(event) => setUsername(event.target.value)}
                         placeholder="Enter username..."
                         className="w-full rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-                        disabled={isSubmitting}
+                        disabled={sendInvitationMutation.isPending}
                         autoFocus
                     />
 
@@ -114,10 +103,10 @@ export function InviteDialog({ projectId, onClose }: InviteDialogProps) {
                         </button>
                         <button
                             type="submit"
-                            disabled={isSubmitting || !username.trim()}
+                            disabled={sendInvitationMutation.isPending || !username.trim()}
                             className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                         >
-                            {isSubmitting ? "Sending..." : "Send Invite"}
+                            {sendInvitationMutation.isPending ? "Sending..." : "Send Invite"}
                         </button>
                     </div>
                 </form>

@@ -22,6 +22,7 @@ import { PanelResizeHandle } from "./PanelResizeHandle";
 import { useMediaQuery } from "@/app/hooks/useMediaQuery";
 import { useSocket } from "@/app/hooks/useSocket";
 import { useCanvasCollaboration } from "@/app/hooks/useCanvasCollaboration";
+import { useSaveProject } from "@/app/hooks/useProjects";
 import { PresenceIndicator } from "../collaboration/PresenceIndicator";
 import type { ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
 import type { Collaborator } from "@/server/socket-events";
@@ -109,6 +110,7 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
         const { emitElementChanges, emitCursorPosition } =
             useCanvasCollaboration(socket, excalidrawApiRef);
 
+        const saveProjectMutation = useSaveProject();
         const AUTO_SAVE_INTERVAL_MS = 30_000;
 
         useEffect(() => {
@@ -119,14 +121,10 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
                 }
 
                 try {
-                    const canvasData = JSON.parse(canvas);
-                    await fetch(`/api/projects/${projectId}`, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            chat: chatMessagesRef.current,
-                            canvas: canvasData,
-                        }),
+                    await saveProjectMutation.mutateAsync({
+                        projectId,
+                        chat: chatMessagesRef.current,
+                        canvas,
                     });
                 } catch (autoSaveError) {
                     console.error("Auto-save failed:", autoSaveError);

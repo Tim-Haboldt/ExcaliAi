@@ -1,228 +1,120 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { UIMessage } from "@ai-sdk/react";
 import type { ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
 import { AuthForm } from "./components/auth/AuthForm";
 import {
     Workspace,
     type WorkspaceHandle,
 } from "./components/workspace/Workspace";
-import {
-    ProjectSidebar,
-    type ProjectSummary,
-} from "./components/sidebar/ProjectSidebar";
+import { ProjectSidebar } from "./components/sidebar/ProjectSidebar";
 import { InviteDialog } from "./components/collaboration/InviteDialog";
 import { SocketProvider } from "./components/collaboration/SocketProvider";
 import { useSocket } from "./hooks/useSocket";
-import type { PendingInvitation } from "./components/collaboration/InvitationList";
-
-interface User {
-    id: string;
-    username: string;
-}
-
-interface ProjectData {
-    id: string;
-    chat: UIMessage[];
-    canvas: ExcalidrawInitialDataState;
-}
-
-type AuthState =
-    | { status: "loading" }
-    | { status: "unauthenticated" }
-    | { status: "authenticated"; user: User };
-
-async function fetchProjects(): Promise<ProjectSummary[]> {
-    const response = await fetch("/api/projects");
-    const data = await response.json();
-
-    return data.projects ?? [];
-}
-
-async function fetchProject(projectId: string): Promise<ProjectData> {
-    const response = await fetch(`/api/projects/${projectId}`);
-    const data = await response.json();
-    const project = data.project;
-
-    const chat = Array.isArray(project.chat) ? project.chat : [];
-    const canvas =
-        typeof project.canvas === "object" && project.canvas !== null
-            ? project.canvas
-            : {};
-
-    return {
-        id: project.id,
-        chat,
-        canvas: canvas as ExcalidrawInitialDataState,
-    };
-}
-
-async function saveProject(
-    projectId: string,
-    state: { chat: UIMessage[]; canvas: string | null },
-) {
-    const canvasData = state.canvas ? JSON.parse(state.canvas) : {};
-
-    await fetch(`/api/projects/${projectId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat: state.chat, canvas: canvasData }),
-    });
-}
-
-async function createProject(): Promise<string> {
-    const response = await fetch("/api/projects", { method: "POST" });
-    const data = await response.json();
-
-    return data.id;
-}
-
-async function fetchInvitations(): Promise<PendingInvitation[]> {
-    const response = await fetch("/api/invitations");
-    const data = await response.json();
-
-    return data.invitations ?? [];
-}
+import { useSession, useLogout } from "./hooks/useSession";
+import {
+    useProjects,
+    useProject,
+    useCreateProject,
+    useSaveProject,
+    useDeleteProject,
+} from "./hooks/useProjects";
+import { useInvitations } from "./hooks/useInvitations";
 
 export default function Home() {
-    const [authState, setAuthState] = useState<AuthState>({
-        status: "loading",
-    });
+    const { data: session, isLoading: isSessionLoading } = useSession();
 
-    useEffect(() => {
-        async function checkSession() {
-            try {
-                const response = await fetch("/api/auth/me");
-                const data = await response.json();
-                if (data.user) {
-                    setAuthState({
-                        status: "authenticated",
-                        user: data.user,
-                    });
-                } else {
-                    setAuthState({ status: "unauthenticated" });
-                }
-            } catch {
-                setAuthState({ status: "unauthenticated" });
-            }
-        }
-
-        checkSession();
-    }, []);
-
-    switch (authState.status) {
-        case "loading":
-            return (
-                <div className="flex min-h-screen items-center justify-center">
-                    <p className="text-foreground/50">Loading...</p>
-                </div>
-            );
-
-        case "unauthenticated":
-            return (
-                <AuthForm
-                    onAuthenticated={(user) =>
-                        setAuthState({ status: "authenticated", user })
-                    }
-                />
-            );
-
-        case "authenticated":
-            return (
-                <SocketProvider>
-                    <AuthenticatedApp
-                        user={authState.user}
-                        onLogout={() => {
-                            setAuthState({ status: "unauthenticated" });
-                        }}
-                    />
-                </SocketProvider>
-            );
+    if (isSessionLoading) {
+        return (
+            <div className="flex min-h-screen items-center justify-center">
+                <p className="text-foreground/50">Loading...</p>
+            </div>
+        );
     }
+
+    if (!session?.user) {
+        return <AuthForm />;
+    }
+
+    return (
+        <SocketProvider>
+            <AuthenticatedApp user={session.user} />
+        </SocketProvider>
+    );
 }
 
 interface AuthenticatedAppProps {
-    user: User;
-    onLogout: () => void;
+    user: { id: string; username: string };
 }
 
-function AuthenticatedApp({ user, onLogout }: AuthenticatedAppProps) {
-    const [projects, setProjects] = useState<ProjectSummary[]>([]);
-    const [currentProject, setCurrentProject] = useState<ProjectData | null>(
-        null,
-    );
+function AuthenticatedApp({ user }: AuthenticatedAppProps) {
+    const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
     const [isSwitching, setIsSwitching] = useState(false);
-    const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
     const [inviteProjectId, setInviteProjectId] = useState<string | null>(null);
 
     const workspaceRef = useRef<WorkspaceHandle>(null);
     const { socket, joinProject, leaveProject, collaborators } = useSocket();
 
-    useEffect(() => {
-        async function loadProjects() {
-            const [projectList, invitationList] = await Promise.all([
-                fetchProjects(),
-                fetchInvitations(),
-            ]);
-            setProjects(projectList);
-            setInvitations(invitationList);
+    const { logout } = useLogout();
+    const { data: projects = [] } = useProjects();
+    const { data: invitations = [] } = useInvitations();
+    const { data: currentProject } = useProject(activeProjectId);
 
-            if (projectList.length > 0) {
-                const projectData = await fetchProject(projectList[0].id);
-                setCurrentProject(projectData);
-            }
-        }
-
-        loadProjects();
-    }, []);
+    const createProjectMutation = useCreateProject();
+    const saveProjectMutation = useSaveProject();
+    const deleteProjectMutation = useDeleteProject();
 
     useEffect(() => {
-        if (!currentProject || !socket) {
+        if (activeProjectId || projects.length === 0) {
             return;
         }
 
-        joinProject(currentProject.id).catch((joinError) => {
+        setActiveProjectId(projects[0].id);
+    }, [projects, activeProjectId]);
+
+    useEffect(() => {
+        if (!activeProjectId || !socket) {
+            return;
+        }
+
+        joinProject(activeProjectId).catch((joinError) => {
             console.error("Failed to join project room:", joinError);
         });
 
         return () => {
             leaveProject();
         };
-    }, [currentProject?.id, socket, joinProject, leaveProject]);
+    }, [activeProjectId, socket, joinProject, leaveProject]);
 
     const saveCurrentProject = useCallback(async () => {
-        if (!currentProject || !workspaceRef.current) {
+        if (!activeProjectId || !workspaceRef.current) {
             return;
         }
 
         try {
             const state = await workspaceRef.current.getState();
-            await saveProject(currentProject.id, state);
+            await saveProjectMutation.mutateAsync({
+                projectId: activeProjectId,
+                chat: state.chat,
+                canvas: state.canvas,
+            });
         } catch (saveError) {
             console.error("Failed to save project:", saveError);
         }
-    }, [currentProject]);
+    }, [activeProjectId, saveProjectMutation]);
 
     const handleProjectSelect = useCallback(
         async (projectId: string) => {
-            if (currentProject?.id === projectId) {
+            if (activeProjectId === projectId) {
                 return;
             }
 
             await saveCurrentProject();
             setIsSwitching(true);
-
-            try {
-                const projectData = await fetchProject(projectId);
-                setCurrentProject(projectData);
-            } catch (loadError) {
-                console.error("Failed to switch project:", loadError);
-            } finally {
-                setIsSwitching(false);
-            }
+            setActiveProjectId(projectId);
+            setIsSwitching(false);
         },
-        [currentProject, saveCurrentProject],
+        [activeProjectId, saveCurrentProject],
     );
 
     const handleNewProject = useCallback(async () => {
@@ -230,96 +122,55 @@ function AuthenticatedApp({ user, onLogout }: AuthenticatedAppProps) {
         setIsSwitching(true);
 
         try {
-            const newProjectId = await createProject();
-            const updatedProjects = await fetchProjects();
-            setProjects(updatedProjects);
-            setCurrentProject({
-                id: newProjectId,
-                chat: [],
-                canvas: {} as ExcalidrawInitialDataState,
-            });
+            const newProjectId = await createProjectMutation.mutateAsync();
+            setActiveProjectId(newProjectId);
         } catch (createError) {
             console.error("Failed to create project:", createError);
         } finally {
             setIsSwitching(false);
         }
-    }, [saveCurrentProject]);
+    }, [saveCurrentProject, createProjectMutation]);
 
     const handleProjectDelete = useCallback(
         async (projectId: string) => {
             try {
-                const response = await fetch(`/api/projects/${projectId}`, {
-                    method: "DELETE",
-                });
-                if (!response.ok) {
-                    console.error("Failed to delete project");
+                await deleteProjectMutation.mutateAsync(projectId);
 
-                    return;
-                }
-
-                const updatedProjects = projects.filter(
-                    (project) => project.id !== projectId,
-                );
-                setProjects(updatedProjects);
-
-                if (currentProject?.id === projectId) {
-                    if (updatedProjects.length > 0) {
-                        const nextProject = await fetchProject(
-                            updatedProjects[0].id,
-                        );
-                        setCurrentProject(nextProject);
-                    } else {
-                        setCurrentProject(null);
-                    }
+                if (activeProjectId === projectId) {
+                    const remaining = projects.filter(
+                        (project) => project.id !== projectId,
+                    );
+                    setActiveProjectId(
+                        remaining.length > 0 ? remaining[0].id : null,
+                    );
                 }
             } catch (deleteError) {
                 console.error("Failed to delete project:", deleteError);
             }
         },
-        [projects, currentProject],
+        [projects, activeProjectId, deleteProjectMutation],
     );
 
     const handleLogout = useCallback(async () => {
         await saveCurrentProject();
         leaveProject();
-        await fetch("/api/auth/logout", { method: "POST" });
-        onLogout();
-    }, [saveCurrentProject, leaveProject, onLogout]);
-
-    const handleInvitationAccept = useCallback(
-        async (invitationId: string) => {
-            setInvitations((previous) =>
-                previous.filter(
-                    (invitation) => invitation.id !== invitationId,
-                ),
-            );
-
-            const updatedProjects = await fetchProjects();
-            setProjects(updatedProjects);
-        },
-        [],
-    );
-
-    const handleInvitationDecline = useCallback((invitationId: string) => {
-        setInvitations((previous) =>
-            previous.filter((invitation) => invitation.id !== invitationId),
-        );
-    }, []);
+        await logout();
+    }, [saveCurrentProject, leaveProject, logout]);
 
     return (
         <div className="flex h-dvh">
             <ProjectSidebar
                 username={user.username}
                 projects={projects}
-                activeProjectId={currentProject?.id ?? null}
+                activeProjectId={activeProjectId}
                 invitations={invitations}
                 onProjectSelect={handleProjectSelect}
                 onProjectDelete={handleProjectDelete}
                 onNewProject={handleNewProject}
                 onLogout={handleLogout}
                 onInvite={setInviteProjectId}
-                onInvitationAccept={handleInvitationAccept}
-                onInvitationDecline={handleInvitationDecline}
+                onInvitationAccept={() => {}}
+                onInvitationDecline={() => {}}
             />
 
             <div className="flex-1">
