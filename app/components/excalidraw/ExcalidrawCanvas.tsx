@@ -1,7 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { ExcalidrawProps } from "@excalidraw/excalidraw/types";
+import type {
+    ExcalidrawProps,
+    Collaborator,
+    SocketId,
+} from "@excalidraw/excalidraw/types";
 
 const ExcalidrawInner = dynamic(() => import("./ExcalidrawInner"), {
     ssr: false,
@@ -13,6 +17,7 @@ type Props = Pick<
 > & {
     className?: string;
     onAiPrompt?: (instruction: string, selectedElementIds: string[]) => void;
+    collaborators?: Map<SocketId, Collaborator>;
 };
 
 export function ExcalidrawCanvas({ className, ...props }: Props) {

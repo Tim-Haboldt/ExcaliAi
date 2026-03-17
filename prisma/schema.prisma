@@ -8,17 +8,46 @@ datasource db {
 }
 
 model Account {
-    id       String    @id @default(cuid())
-    username String    @unique
-    projects Project[]
+    id                  String          @id @default(cuid())
+    username            String          @unique
+    memberships         ProjectMember[]
+    sentInvitations     Invitation[]    @relation("inviter")
+    receivedInvitations Invitation[]    @relation("invitee")
 }
 
 model Project {
+    id          String          @id @default(cuid())
+    members     ProjectMember[]
+    invitations Invitation[]
+    chat        Json            @default("[]")
+    canvas      Json            @default("{}")
+    createdAt   DateTime        @default(now())
+    updatedAt   DateTime        @updatedAt
+}
+
+model ProjectMember {
     id        String   @id @default(cuid())
+    projectId String
+    project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
     accountId String
     account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-    chat      Json     @default("[]")
-    canvas    Json     @default("{}")
+    role      String   @default("member")
+    deleted   Boolean  @default(false)
+    joinedAt  DateTime @default(now())
+
+    @@unique([projectId, accountId])
+}
+
+model Invitation {
+    id        String   @id @default(cuid())
+    projectId String
+    project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    inviterId String
+    inviter   Account  @relation("inviter", fields: [inviterId], references: [id])
+    inviteeId String
+    invitee   Account  @relation("invitee", fields: [inviteeId], references: [id])
+    status    String   @default("pending")
     createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+
+    @@unique([projectId, inviteeId])
 }

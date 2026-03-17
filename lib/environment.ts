@@ -12,6 +12,8 @@ const envSchema = z
         OPENAI_API_KEY: z.string().optional(),
         ANTHROPIC_API_KEY: z.string().optional(),
         GOOGLE_GENERATIVE_AI_API_KEY: z.string().optional(),
+        SOCKET_PORT: z.string(),
+        NEXT_PUBLIC_SOCKET_URL: z.string(),
     })
     .superRefine((val, ctx) => {
         const keyMap: Record<z.infer<typeof aiProviderSchema>, string> = {

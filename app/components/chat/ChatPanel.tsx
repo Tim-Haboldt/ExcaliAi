@@ -18,9 +18,11 @@ import {
     type AiElement,
     convertAiToExcalidrawScene,
 } from "@/lib/ai/excalidraw-ai-schema";
+import { useSocket } from "@/app/hooks/useSocket";
 
 type ChatPanelProps = {
     className?: string;
+    projectId: string;
     initialMessages?: UIMessage[];
     messagesRef?: MutableRefObject<UIMessage[]>;
     getExcalidrawScene?: () => Promise<string | null>;
@@ -71,6 +73,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
     function ChatPanel(
         {
             className,
+            projectId,
             initialMessages,
             messagesRef,
             getExcalidrawScene,
@@ -96,13 +99,15 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
         const deleteElementsRef = useRef(deleteExcalidrawElements);
         deleteElementsRef.current = deleteExcalidrawElements;
 
+        const { socket } = useSocket();
+
         const transport = useMemo(
             () =>
                 new DefaultChatTransport({
                     api: "/api/chat",
                     prepareSendMessagesRequest: async ({
                         id,
-                        messages,
+                        messages: requestMessages,
                         body,
                     }) => {
                         let scene: string | null = null;
@@ -121,20 +126,94 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
                         }
 
                         return {
-                            body: { ...body, id, messages, scene, png },
+                            body: {
+                                ...body,
+                                id,
+                                messages: requestMessages,
+                                scene,
+                                png,
+                            },
                         };
                     },
                 }),
             [],
         );
 
-        const { messages, sendMessage, status, error, clearError } = useChat({
+        const {
+            messages,
+            setMessages,
+            sendMessage,
+            status,
+            error,
+            clearError,
+        } = useChat({
             messages: initialMessages,
             transport,
             onError(chatError) {
                 console.error("Chat error:", chatError);
             },
         });
+
+        const broadcastedMessageIds = useRef(new Set<string>());
+
+        useEffect(() => {
+            if (!socket) {
+                return;
+            }
+
+            for (const message of messages) {
+                if (broadcastedMessageIds.current.has(message.id)) {
+                    continue;
+                }
+
+                const isComplete =
+                    message.role === "user" ||
+                    (message.role === "assistant" &&
+                        status !== "streaming" &&
+                        status !== "submitted");
+
+                if (!isComplete) {
+                    continue;
+                }
+
+                broadcastedMessageIds.current.add(message.id);
+                socket.emit("chat:message", {
+                    message: message as unknown as Record<string, unknown>,
+                });
+            }
+        }, [messages, status, socket]);
+
+        useEffect(() => {
+            if (!socket) {
+                return;
+            }
+
+            const handleRemoteMessage = (payload: {
+                message: Record<string, unknown>;
+                senderId: string;
+            }) => {
+                const remoteMessage = payload.message as unknown as UIMessage;
+                broadcastedMessageIds.current.add(remoteMessage.id);
+
+                setMessages((previousMessages) => {
+                    const existingIds = new Set(
+                        previousMessages.map((message) => message.id),
+                    );
+
+                    if (existingIds.has(remoteMessage.id)) {
+                        return previousMessages;
+                    }
+
+                    return [...previousMessages, remoteMessage];
+                });
+            };
+
+            socket.on("chat:remote-message", handleRemoteMessage);
+
+            return () => {
+                socket.off("chat:remote-message", handleRemoteMessage);
+            };
+        }, [socket, setMessages]);
 
         useImperativeHandle(ref, () => ({
             async sendMessage(text: string) {
