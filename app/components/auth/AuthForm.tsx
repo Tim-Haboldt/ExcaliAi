@@ -1,45 +1,29 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useAuthenticate } from "@/app/hooks/useAuth";
 
 type AuthMode = "login" | "register";
 
-interface AuthFormProps {
-    onAuthenticated: (user: { id: string; username: string }) => void;
-}
-
-export function AuthForm({ onAuthenticated }: AuthFormProps) {
+export function AuthForm() {
     const [mode, setMode] = useState<AuthMode>("login");
     const [username, setUsername] = useState("");
     const [error, setError] = useState("");
-    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const authenticateMutation = useAuthenticate();
 
     async function handleSubmit(event: FormEvent) {
         event.preventDefault();
         setError("");
-        setIsSubmitting(true);
-
-        const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
 
         try {
-            const response = await fetch(endpoint, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username }),
-            });
-
-            const data = await response.json();
-            if (!response.ok) {
-                setError(data.error ?? "Something went wrong");
-
-                return;
+            await authenticateMutation.mutateAsync({ mode, username });
+        } catch (submitError) {
+            if (submitError instanceof Error) {
+                setError(submitError.message);
+            } else {
+                setError("Network error. Please try again.");
             }
-
-            onAuthenticated(data);
-        } catch {
-            setError("Network error. Please try again.");
-        } finally {
-            setIsSubmitting(false);
         }
     }
 
@@ -85,10 +69,10 @@ export function AuthForm({ onAuthenticated }: AuthFormProps) {
 
                     <button
                         type="submit"
-                        disabled={isSubmitting || username.length < 3}
+                        disabled={authenticateMutation.isPending || username.length < 3}
                         className="w-full rounded-lg bg-foreground px-4 py-2.5 font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        {isSubmitting
+                        {authenticateMutation.isPending
                             ? "Please wait..."
                             : mode === "login"
                               ? "Sign in"

@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
 import { Check, X, Mail } from "lucide-react";
+import { useRespondToInvitation } from "@/app/hooks/useInvitations";
 
 export interface PendingInvitation {
     id: string;
@@ -21,47 +21,25 @@ export function InvitationList({
     onAccept,
     onDecline,
 }: InvitationListProps) {
-    const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+    const respondMutation = useRespondToInvitation();
 
-    const handleAction = useCallback(
-        async (invitationId: string, action: "accept" | "decline") => {
-            setProcessingIds((previous) => new Set(previous).add(invitationId));
-
-            try {
-                const response = await fetch(
-                    `/api/invitations/${invitationId}`,
-                    {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ action }),
-                    },
-                );
-
-                if (!response.ok) {
-                    return;
-                }
-
-                switch (action) {
-                    case "accept":
-                        onAccept(invitationId);
-                        break;
-                    case "decline":
-                        onDecline(invitationId);
-                        break;
-                }
-            } catch (actionError) {
-                console.error("Failed to process invitation:", actionError);
-            } finally {
-                setProcessingIds((previous) => {
-                    const next = new Set(previous);
-                    next.delete(invitationId);
-
-                    return next;
-                });
-            }
-        },
-        [onAccept, onDecline],
-    );
+    function handleAction(invitationId: string, action: "accept" | "decline") {
+        respondMutation.mutate(
+            { invitationId, action },
+            {
+                onSuccess: (completedAction) => {
+                    switch (completedAction) {
+                        case "accept":
+                            onAccept(invitationId);
+                            break;
+                        case "decline":
+                            onDecline(invitationId);
+                            break;
+                    }
+                },
+            },
+        );
+    }
 
     if (invitations.length === 0) {
         return null;
@@ -75,7 +53,9 @@ export function InvitationList({
             </div>
 
             {invitations.map((invitation) => {
-                const isProcessing = processingIds.has(invitation.id);
+                const isProcessing =
+                    respondMutation.isPending &&
+                    respondMutation.variables?.invitationId === invitation.id;
 
                 return (
                     <div
