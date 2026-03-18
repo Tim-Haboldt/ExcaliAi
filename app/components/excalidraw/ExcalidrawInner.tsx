@@ -11,6 +11,12 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import { AiQuickPrompt } from "./AiQuickPrompt";
 
+declare global {
+    interface Window {
+        __EXCALIDRAW_API__?: ExcalidrawImperativeAPI;
+    }
+}
+
 type Props = Pick<
     ExcalidrawProps,
     "initialData" | "onChange" | "onPointerUpdate" | "theme" | "excalidrawAPI"
@@ -42,6 +48,7 @@ export default function ExcalidrawInner({
     const handleExcalidrawApi = useCallback(
         (api: ExcalidrawImperativeAPI) => {
             excalidrawApiRef.current = api;
+            window.__EXCALIDRAW_API__ = api;
             props.excalidrawAPI?.(api);
         },
         [props.excalidrawAPI],
