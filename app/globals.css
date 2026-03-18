@@ -31,7 +31,8 @@ body {
 
 .panel-resize-handle {
     background: color-mix(in srgb, var(--foreground) 4%, transparent);
-    border-inline: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+    border-inline: 1px solid
+        color-mix(in srgb, var(--foreground) 8%, transparent);
     transition: background-color 120ms ease;
 }
 

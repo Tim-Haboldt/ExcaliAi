@@ -24,9 +24,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
     );
 }
 
-function ensureToolInputsAreObjects(
-    messages: ModelMessage[],
-): ModelMessage[] {
+function ensureToolInputsAreObjects(messages: ModelMessage[]): ModelMessage[] {
     return messages.map((message) => {
         if (message.role !== "assistant") {
             return message;
@@ -167,8 +165,7 @@ export async function POST(req: Request) {
 
         return new Response(
             JSON.stringify({
-                error:
-                    error instanceof Error ? error.message : "Unknown error",
+                error: error instanceof Error ? error.message : "Unknown error",
             }),
             { status: 500, headers: { "Content-Type": "application/json" } },
         );

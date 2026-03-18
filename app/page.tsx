@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { AuthForm } from "./components/auth/AuthForm";
 import {
     Workspace,
@@ -48,7 +47,9 @@ interface AuthenticatedAppProps {
 }
 
 function AuthenticatedApp({ user }: AuthenticatedAppProps) {
-    const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+    const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+        null,
+    );
     const [isSwitching, setIsSwitching] = useState(false);
     const [inviteProjectId, setInviteProjectId] = useState<string | null>(null);
 
@@ -58,19 +59,18 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
     const { logout } = useLogout();
     const { data: projects = [] } = useProjects();
     const { data: invitations = [] } = useInvitations();
+
+    const activeProjectId = useMemo(
+        () =>
+            selectedProjectId ?? (projects.length > 0 ? projects[0].id : null),
+        [selectedProjectId, projects],
+    );
+
     const { data: currentProject } = useProject(activeProjectId);
 
     const createProjectMutation = useCreateProject();
     const saveProjectMutation = useSaveProject();
     const deleteProjectMutation = useDeleteProject();
-
-    useEffect(() => {
-        if (activeProjectId || projects.length === 0) {
-            return;
-        }
-
-        setActiveProjectId(projects[0].id);
-    }, [projects, activeProjectId]);
 
     useEffect(() => {
         if (!activeProjectId || !socket) {
@@ -111,7 +111,7 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
 
             await saveCurrentProject();
             setIsSwitching(true);
-            setActiveProjectId(projectId);
+            setSelectedProjectId(projectId);
             setIsSwitching(false);
         },
         [activeProjectId, saveCurrentProject],
@@ -123,7 +123,7 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
 
         try {
             const newProjectId = await createProjectMutation.mutateAsync();
-            setActiveProjectId(newProjectId);
+            setSelectedProjectId(newProjectId);
         } catch (createError) {
             console.error("Failed to create project:", createError);
         } finally {
@@ -137,18 +137,13 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
                 await deleteProjectMutation.mutateAsync(projectId);
 
                 if (activeProjectId === projectId) {
-                    const remaining = projects.filter(
-                        (project) => project.id !== projectId,
-                    );
-                    setActiveProjectId(
-                        remaining.length > 0 ? remaining[0].id : null,
-                    );
+                    setSelectedProjectId(null);
                 }
             } catch (deleteError) {
                 console.error("Failed to delete project:", deleteError);
             }
         },
-        [projects, activeProjectId, deleteProjectMutation],
+        [activeProjectId, deleteProjectMutation],
     );
 
     const handleLogout = useCallback(async () => {
@@ -169,16 +164,12 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
                 onNewProject={handleNewProject}
                 onLogout={handleLogout}
                 onInvite={setInviteProjectId}
-                onInvitationAccept={() => {}}
-                onInvitationDecline={() => {}}
             />
 
             <div className="flex-1">
                 {isSwitching ? (
                     <div className="flex h-full items-center justify-center">
-                        <p className="text-foreground/50">
-                            Loading project...
-                        </p>
+                        <p className="text-foreground/50">Loading project...</p>
                     </div>
                 ) : currentProject ? (
                     <Workspace

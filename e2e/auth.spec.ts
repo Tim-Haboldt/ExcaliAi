@@ -68,7 +68,9 @@ test.describe("Authentication", () => {
         await page.getByLabel("Username").fill(username);
         await page.getByRole("button", { name: "Create account" }).click();
 
-        const errorMessage = page.locator(".text-red-600, .dark\\:text-red-400");
+        const errorMessage = page.locator(
+            ".text-red-600, .dark\\:text-red-400",
+        );
         await expect(errorMessage).toBeVisible({ timeout: 5_000 });
         await expect(errorMessage).toContainText("taken");
     });

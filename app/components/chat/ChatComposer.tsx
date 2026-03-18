@@ -26,9 +26,7 @@ export function ChatComposer({
         await onSend(content);
     }, [onSend, value, disabled]);
 
-    const handleKeyDown = (
-        event: React.KeyboardEvent<HTMLTextAreaElement>,
-    ) => {
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             void submit();

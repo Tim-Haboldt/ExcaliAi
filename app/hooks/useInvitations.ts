@@ -5,6 +5,11 @@ import type { PendingInvitation } from "../components/collaboration/InvitationLi
 
 async function fetchInvitations(): Promise<PendingInvitation[]> {
     const response = await fetch("/api/invitations");
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch invitations");
+    }
+
     const data = await response.json();
 
     return data.invitations ?? [];

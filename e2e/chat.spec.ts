@@ -13,10 +13,7 @@ test.describe("Chat", () => {
 
         await sendChatMessage(authenticatedPage, "Hello, can you help me?");
 
-        await waitForUserMessage(
-            authenticatedPage,
-            "Hello, can you help me?",
-        );
+        await waitForUserMessage(authenticatedPage, "Hello, can you help me?");
     });
 
     test("receive mocked AI text response", async ({ authenticatedPage }) => {

@@ -11,12 +11,9 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 export function useExcalidrawOperations() {
     const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
 
-    const handleExcalidrawAPI = useCallback(
-        (api: ExcalidrawImperativeAPI) => {
-            excalidrawApiRef.current = api;
-        },
-        [],
-    );
+    const handleExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI) => {
+        excalidrawApiRef.current = api;
+    }, []);
 
     const getScene = useCallback(async (): Promise<string | null> => {
         const api = excalidrawApiRef.current;
@@ -80,9 +77,8 @@ export function useExcalidrawOperations() {
             return;
         }
 
-        const { restore, CaptureUpdateAction } = await import(
-            "@excalidraw/excalidraw"
-        );
+        const { restore, CaptureUpdateAction } =
+            await import("@excalidraw/excalidraw");
 
         // Validate structure, then pass raw parsed data to restore() so we
         // avoid type assertions bridging Zod types to Excalidraw internals.
@@ -102,70 +98,55 @@ export function useExcalidrawOperations() {
         }
     }, []);
 
-    const updateElements = useCallback(
-        async (aiElements: AiElement[]) => {
-            const api = excalidrawApiRef.current;
-            if (!api) {
-                return;
-            }
+    const updateElements = useCallback(async (aiElements: AiElement[]) => {
+        const api = excalidrawApiRef.current;
+        if (!api) {
+            return;
+        }
 
-            const { restore, CaptureUpdateAction } = await import(
-                "@excalidraw/excalidraw"
-            );
+        const { restore, CaptureUpdateAction } =
+            await import("@excalidraw/excalidraw");
 
-            const currentElements = api.getSceneElements();
-            const updatedIds = new Set(
-                aiElements.map((element) => element.id),
-            );
-            const unchangedElements = currentElements.filter(
-                (element) => !updatedIds.has(element.id),
-            );
+        const currentElements = api.getSceneElements();
+        const updatedIds = new Set(aiElements.map((element) => element.id));
+        const unchangedElements = currentElements.filter(
+            (element) => !updatedIds.has(element.id),
+        );
 
-            // Round-trip through JSON so restore() receives untyped data,
-            // avoiding type assertions between our schema and Excalidraw's.
-            const convertedElements = aiElements.map(
-                convertAiElementToExcalidraw,
-            );
-            const rawConverted = JSON.parse(
-                JSON.stringify(convertedElements),
-            );
-            const { elements: normalizedElements } = restore(
-                { elements: rawConverted },
-                null,
-                null,
-            );
+        // Round-trip through JSON so restore() receives untyped data,
+        // avoiding type assertions between our schema and Excalidraw's.
+        const convertedElements = aiElements.map(convertAiElementToExcalidraw);
+        const rawConverted = JSON.parse(JSON.stringify(convertedElements));
+        const { elements: normalizedElements } = restore(
+            { elements: rawConverted },
+            null,
+            null,
+        );
 
-            api.updateScene({
-                elements: [...unchangedElements, ...normalizedElements],
-                captureUpdate: CaptureUpdateAction.EVENTUALLY,
-            });
-        },
-        [],
-    );
+        api.updateScene({
+            elements: [...unchangedElements, ...normalizedElements],
+            captureUpdate: CaptureUpdateAction.EVENTUALLY,
+        });
+    }, []);
 
-    const deleteElements = useCallback(
-        async (elementIds: string[]) => {
-            const api = excalidrawApiRef.current;
-            if (!api) {
-                return;
-            }
+    const deleteElements = useCallback(async (elementIds: string[]) => {
+        const api = excalidrawApiRef.current;
+        if (!api) {
+            return;
+        }
 
-            const { CaptureUpdateAction } = await import(
-                "@excalidraw/excalidraw"
-            );
+        const { CaptureUpdateAction } = await import("@excalidraw/excalidraw");
 
-            const idsToDelete = new Set(elementIds);
-            const remaining = api
-                .getSceneElements()
-                .filter((element) => !idsToDelete.has(element.id));
+        const idsToDelete = new Set(elementIds);
+        const remaining = api
+            .getSceneElements()
+            .filter((element) => !idsToDelete.has(element.id));
 
-            api.updateScene({
-                elements: remaining,
-                captureUpdate: CaptureUpdateAction.EVENTUALLY,
-            });
-        },
-        [],
-    );
+        api.updateScene({
+            elements: remaining,
+            captureUpdate: CaptureUpdateAction.EVENTUALLY,
+        });
+    }, []);
 
     return {
         handleExcalidrawAPI,

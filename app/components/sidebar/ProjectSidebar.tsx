@@ -30,8 +30,6 @@ interface ProjectSidebarProps {
     onNewProject: () => void;
     onLogout: () => void;
     onInvite: (projectId: string) => void;
-    onInvitationAccept: (invitationId: string) => void;
-    onInvitationDecline: (invitationId: string) => void;
 }
 
 function formatDate(dateString: string): string {
@@ -55,8 +53,6 @@ export function ProjectSidebar({
     onNewProject,
     onLogout,
     onInvite,
-    onInvitationAccept,
-    onInvitationDecline,
 }: ProjectSidebarProps) {
     const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -109,11 +105,7 @@ export function ProjectSidebar({
                         </button>
                     </div>
 
-                    <InvitationList
-                        invitations={invitations}
-                        onAccept={onInvitationAccept}
-                        onDecline={onInvitationDecline}
-                    />
+                    <InvitationList invitations={invitations} />
 
                     <nav className="flex-1 overflow-y-auto px-2 py-1">
                         {projects.length === 0 && (

@@ -30,9 +30,7 @@ export interface ClientToServerEvents {
         callback: (response: { success: boolean; error?: string }) => void,
     ) => void;
     "project:leave": () => void;
-    "canvas:update": (payload: {
-        elements: Record<string, unknown>[];
-    }) => void;
+    "canvas:update": (payload: { elements: Record<string, unknown>[] }) => void;
     "cursor:move": (payload: {
         pointer: { x: number; y: number } | null;
         button: "up" | "down";

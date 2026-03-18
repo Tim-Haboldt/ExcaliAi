@@ -60,15 +60,14 @@ export async function PUT(request: Request, context: RouteContext) {
             data: { status: "accepted" },
         });
 
-        const existingMembership =
-            await transaction.projectMember.findUnique({
-                where: {
-                    projectId_accountId: {
-                        projectId: invitation.projectId,
-                        accountId: session.accountId,
-                    },
+        const existingMembership = await transaction.projectMember.findUnique({
+            where: {
+                projectId_accountId: {
+                    projectId: invitation.projectId,
+                    accountId: session.accountId,
                 },
-            });
+            },
+        });
 
         if (existingMembership) {
             await transaction.projectMember.update({

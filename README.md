@@ -7,11 +7,11 @@ A Next.js application that pairs an [Excalidraw](https://excalidraw.com/) canvas
 - **Interactive Excalidraw canvas** — full drawing experience powered by Excalidraw 0.18.
 - **AI chat panel** — streaming conversation interface beside the canvas.
 - **Canvas-aware AI tools** — the assistant can:
-  - **Read** the current canvas state as structured JSON.
-  - **Screenshot** the canvas as a PNG for visual inspection.
-  - **Replace** the entire canvas with a new set of elements.
-  - **Update** specific elements by ID (add or modify).
-  - **Delete** elements by ID.
+    - **Read** the current canvas state as structured JSON.
+    - **Screenshot** the canvas as a PNG for visual inspection.
+    - **Replace** the entire canvas with a new set of elements.
+    - **Update** specific elements by ID (add or modify).
+    - **Delete** elements by ID.
 - **Multi-provider support** — swap between OpenAI, Anthropic, and Google with a single environment variable.
 - **Real-time tool feedback** — the chat UI shows live status indicators while the AI reads or modifies the canvas.
 
@@ -40,11 +40,11 @@ ANTHROPIC_API_KEY=your_key_here
 
 #### Supported Providers
 
-| `AI_PROVIDER` | Required API Key                    |
-| ------------- | ----------------------------------- |
-| `openai`      | `OPENAI_API_KEY`                    |
-| `anthropic`   | `ANTHROPIC_API_KEY`                 |
-| `google`      | `GOOGLE_GENERATIVE_AI_API_KEY`      |
+| `AI_PROVIDER` | Required API Key               |
+| ------------- | ------------------------------ |
+| `openai`      | `OPENAI_API_KEY`               |
+| `anthropic`   | `ANTHROPIC_API_KEY`            |
+| `google`      | `GOOGLE_GENERATIVE_AI_API_KEY` |
 
 `AI_MODEL` is optional — it overrides the default model for the selected provider.
 
@@ -99,10 +99,10 @@ lib/
 
 ## Scripts
 
-| Command          | Description              |
-| ---------------- | ------------------------ |
-| `pnpm dev`       | Start development server |
-| `pnpm build`     | Production build         |
-| `pnpm start`     | Start production server  |
-| `pnpm lint`      | Run ESLint               |
-| `pnpm prettier`  | Format with Prettier     |
+| Command         | Description              |
+| --------------- | ------------------------ |
+| `pnpm dev`      | Start development server |
+| `pnpm build`    | Production build         |
+| `pnpm start`    | Start production server  |
+| `pnpm lint`     | Run ESLint               |
+| `pnpm prettier` | Format with Prettier     |

@@ -51,7 +51,9 @@ export function AuthForm() {
                             id="username"
                             type="text"
                             value={username}
-                            onChange={(event) => setUsername(event.target.value)}
+                            onChange={(event) =>
+                                setUsername(event.target.value)
+                            }
                             placeholder="Enter your username"
                             autoFocus
                             required
@@ -69,7 +71,10 @@ export function AuthForm() {
 
                     <button
                         type="submit"
-                        disabled={authenticateMutation.isPending || username.length < 3}
+                        disabled={
+                            authenticateMutation.isPending ||
+                            username.length < 3
+                        }
                         className="w-full rounded-lg bg-foreground px-4 py-2.5 font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {authenticateMutation.isPending
@@ -81,7 +86,9 @@ export function AuthForm() {
                 </form>
 
                 <p className="mt-5 text-center text-sm text-foreground/50">
-                    {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
+                    {mode === "login"
+                        ? "Don't have an account?"
+                        : "Already have an account?"}{" "}
                     <button
                         type="button"
                         onClick={switchMode}

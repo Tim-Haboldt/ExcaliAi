@@ -29,9 +29,7 @@ test.describe("Invitations", () => {
         const inviteButton = pageA.getByTitle("Invite collaborator").first();
         await inviteButton.click({ force: true });
 
-        await expect(
-            pageA.getByText("Invite Collaborator"),
-        ).toBeVisible();
+        await expect(pageA.getByText("Invite Collaborator")).toBeVisible();
 
         const inviteInput = pageA.getByPlaceholder("Enter username...");
         await inviteInput.fill(usernameB);

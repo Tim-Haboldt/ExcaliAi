@@ -19,87 +19,50 @@ import {
     convertAiToExcalidrawScene,
 } from "@/lib/ai/excalidraw-ai-schema";
 import { useSocket } from "@/app/hooks/useSocket";
+import { useExcalidrawOps } from "../workspace/ExcalidrawOperationsContext";
 
 type ChatPanelProps = {
     className?: string;
     projectId: string;
     initialMessages?: UIMessage[];
     messagesRef?: MutableRefObject<UIMessage[]>;
-    getExcalidrawScene?: () => Promise<string | null>;
-    getExcalidrawPng?: () => Promise<string | null>;
-    updateExcalidrawScene?: (json: string) => Promise<void>;
-    updateExcalidrawElements?: (elements: AiElement[]) => Promise<void>;
-    deleteExcalidrawElements?: (elementIds: string[]) => Promise<void>;
 };
 
 export interface ChatPanelHandle {
     sendMessage: (text: string) => Promise<void>;
 }
 
-type ToolCallPart = {
-    type: string;
-    toolCallId: string;
-    state: string;
-    input?: Record<string, unknown>;
-};
-
-function isToolCallPart(part: unknown): part is ToolCallPart {
-    if (typeof part !== "object" || part === null) {
-        return false;
-    }
-
-    const hasRequiredFields =
-        "type" in part && "toolCallId" in part && "state" in part;
-
-    if (!hasRequiredFields) {
-        return false;
-    }
-
-    return (
-        typeof part.type === "string" &&
-        typeof part.toolCallId === "string" &&
-        typeof part.state === "string"
-    );
-}
-
-function isReadyToolCall(toolPart: ToolCallPart): boolean {
-    return (
-        toolPart.state === "input-available" ||
-        toolPart.state === "output-available"
-    );
-}
-
 export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
     function ChatPanel(
-        {
-            className,
-            projectId,
-            initialMessages,
-            messagesRef,
-            getExcalidrawScene,
-            getExcalidrawPng,
-            updateExcalidrawScene,
-            updateExcalidrawElements,
-            deleteExcalidrawElements,
-        },
+        { className, projectId, initialMessages, messagesRef },
         ref,
     ) {
-        const getSceneRef = useRef(getExcalidrawScene);
-        getSceneRef.current = getExcalidrawScene;
+        const {
+            getScene,
+            getPng,
+            updateScene,
+            updateElements,
+            deleteElements,
+        } = useExcalidrawOps();
 
-        const getPngRef = useRef(getExcalidrawPng);
-        getPngRef.current = getExcalidrawPng;
+        const getSceneRef = useRef(getScene);
+        getSceneRef.current = getScene;
 
-        const updateSceneRef = useRef(updateExcalidrawScene);
-        updateSceneRef.current = updateExcalidrawScene;
+        const getPngRef = useRef(getPng);
+        getPngRef.current = getPng;
 
-        const updateElementsRef = useRef(updateExcalidrawElements);
-        updateElementsRef.current = updateExcalidrawElements;
+        const updateSceneRef = useRef(updateScene);
+        updateSceneRef.current = updateScene;
 
-        const deleteElementsRef = useRef(deleteExcalidrawElements);
-        deleteElementsRef.current = deleteExcalidrawElements;
+        const updateElementsRef = useRef(updateElements);
+        updateElementsRef.current = updateElements;
+
+        const deleteElementsRef = useRef(deleteElements);
+        deleteElementsRef.current = deleteElements;
 
         const { socket } = useSocket();
+        const socketRef = useRef(socket);
+        socketRef.current = socket;
 
         const transport = useMemo(
             () =>
@@ -149,12 +112,71 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
         } = useChat({
             messages: initialMessages,
             transport,
+            onToolCall({ toolCall }) {
+                const input = toolCall.input as Record<string, unknown>;
+
+                switch (toolCall.toolName) {
+                    case "updateCanvas": {
+                        try {
+                            const scene = convertAiToExcalidrawScene(
+                                input as unknown as AiCanvasUpdate,
+                            );
+                            void updateSceneRef.current?.(
+                                JSON.stringify(scene),
+                            );
+                        } catch (conversionError) {
+                            console.error(
+                                "Failed to apply canvas update:",
+                                conversionError,
+                            );
+                        }
+                        break;
+                    }
+                    case "updateElements": {
+                        try {
+                            void updateElementsRef.current?.(
+                                input.elements as AiElement[],
+                            );
+                        } catch (updateError) {
+                            console.error(
+                                "Failed to apply element update:",
+                                updateError,
+                            );
+                        }
+                        break;
+                    }
+                    case "deleteElements": {
+                        try {
+                            void deleteElementsRef.current?.(
+                                input.elementIds as string[],
+                            );
+                        } catch (deleteError) {
+                            console.error(
+                                "Failed to delete elements:",
+                                deleteError,
+                            );
+                        }
+                        break;
+                    }
+                }
+            },
+            onFinish({ message }) {
+                const currentSocket = socketRef.current;
+                if (!currentSocket) {
+                    return;
+                }
+
+                currentSocket.emit("chat:message", {
+                    message: message as unknown as Record<string, unknown>,
+                });
+            },
             onError(chatError) {
                 console.error("Chat error:", chatError);
             },
         });
 
-        const broadcastedMessageIds = useRef(new Set<string>());
+        const broadcastedUserMessageIds = useRef(new Set<string>());
+        const remoteMessageIds = useRef(new Set<string>());
 
         useEffect(() => {
             if (!socket) {
@@ -162,26 +184,24 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
             }
 
             for (const message of messages) {
-                if (broadcastedMessageIds.current.has(message.id)) {
+                if (message.role !== "user") {
                     continue;
                 }
 
-                const isComplete =
-                    message.role === "user" ||
-                    (message.role === "assistant" &&
-                        status !== "streaming" &&
-                        status !== "submitted");
-
-                if (!isComplete) {
+                if (broadcastedUserMessageIds.current.has(message.id)) {
                     continue;
                 }
 
-                broadcastedMessageIds.current.add(message.id);
+                if (remoteMessageIds.current.has(message.id)) {
+                    continue;
+                }
+
+                broadcastedUserMessageIds.current.add(message.id);
                 socket.emit("chat:message", {
                     message: message as unknown as Record<string, unknown>,
                 });
             }
-        }, [messages, status, socket]);
+        }, [messages, socket]);
 
         useEffect(() => {
             if (!socket) {
@@ -193,7 +213,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
                 senderId: string;
             }) => {
                 const remoteMessage = payload.message as unknown as UIMessage;
-                broadcastedMessageIds.current.add(remoteMessage.id);
+                remoteMessageIds.current.add(remoteMessage.id);
 
                 setMessages((previousMessages) => {
                     const existingIds = new Set(
@@ -236,81 +256,6 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
         if (messagesRef) {
             messagesRef.current = messages;
         }
-
-        const appliedToolCalls = useRef(new Set<string>());
-
-        useEffect(() => {
-            for (const message of messages) {
-                if (message.role !== "assistant") {
-                    continue;
-                }
-
-                for (const part of message.parts) {
-                    if (!isToolCallPart(part)) {
-                        continue;
-                    }
-
-                    if (!isReadyToolCall(part)) {
-                        continue;
-                    }
-
-                    if (appliedToolCalls.current.has(part.toolCallId)) {
-                        continue;
-                    }
-
-                    if (!part.input) {
-                        continue;
-                    }
-
-                    appliedToolCalls.current.add(part.toolCallId);
-
-                    switch (part.type) {
-                        case "tool-updateCanvas": {
-                            try {
-                                const scene = convertAiToExcalidrawScene(
-                                    part.input as AiCanvasUpdate,
-                                );
-                                void updateSceneRef.current?.(
-                                    JSON.stringify(scene),
-                                );
-                            } catch (conversionError) {
-                                console.error(
-                                    "Failed to apply canvas update:",
-                                    conversionError,
-                                );
-                            }
-                            break;
-                        }
-                        case "tool-updateElements": {
-                            try {
-                                void updateElementsRef.current?.(
-                                    part.input.elements as AiElement[],
-                                );
-                            } catch (updateError) {
-                                console.error(
-                                    "Failed to apply element update:",
-                                    updateError,
-                                );
-                            }
-                            break;
-                        }
-                        case "tool-deleteElements": {
-                            try {
-                                void deleteElementsRef.current?.(
-                                    part.input.elementIds as string[],
-                                );
-                            } catch (deleteError) {
-                                console.error(
-                                    "Failed to delete elements:",
-                                    deleteError,
-                                );
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-        }, [messages]);
 
         const handleSend = useCallback(
             async (content: string) => {

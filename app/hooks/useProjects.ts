@@ -13,6 +13,11 @@ interface ProjectData {
 
 async function fetchProjects(): Promise<ProjectSummary[]> {
     const response = await fetch("/api/projects");
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch projects");
+    }
+
     const data = await response.json();
 
     return data.projects ?? [];
@@ -20,6 +25,11 @@ async function fetchProjects(): Promise<ProjectSummary[]> {
 
 async function fetchProject(projectId: string): Promise<ProjectData> {
     const response = await fetch(`/api/projects/${projectId}`);
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch project ${projectId}`);
+    }
+
     const data = await response.json();
     const project = data.project;
 
@@ -45,15 +55,24 @@ async function saveProjectRequest({
 }: SaveProjectPayload): Promise<void> {
     const canvasData = canvas ? JSON.parse(canvas) : {};
 
-    await fetch(`/api/projects/${projectId}`, {
+    const response = await fetch(`/api/projects/${projectId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chat, canvas: canvasData }),
     });
+
+    if (!response.ok) {
+        throw new Error(`Failed to save project ${projectId}`);
+    }
 }
 
 async function createProjectRequest(): Promise<string> {
     const response = await fetch("/api/projects", { method: "POST" });
+
+    if (!response.ok) {
+        throw new Error("Failed to create project");
+    }
+
     const data = await response.json();
 
     return data.id;
@@ -97,8 +116,15 @@ export function useCreateProject() {
 }
 
 export function useSaveProject() {
+    const queryClient = useQueryClient();
+
     return useMutation({
         mutationFn: saveProjectRequest,
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: ["project", variables.projectId],
+            });
+        },
     });
 }
 

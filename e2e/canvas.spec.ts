@@ -59,17 +59,14 @@ test.describe("Excalidraw Canvas", () => {
             const projectsData = await projectsResponse.json();
             const projectId = projectsData.projects[0].id;
 
-            const saveResponse = await fetch(
-                `/api/projects/${projectId}`,
-                {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        chat: [],
-                        canvas: canvasData,
-                    }),
-                },
-            );
+            const saveResponse = await fetch(`/api/projects/${projectId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    chat: [],
+                    canvas: canvasData,
+                }),
+            });
 
             if (!saveResponse.ok) {
                 throw new Error(
@@ -82,8 +79,7 @@ test.describe("Excalidraw Canvas", () => {
         await waitForCanvas(authenticatedPage);
         await authenticatedPage.waitForTimeout(2_000);
 
-        const elementCountAfter =
-            await getSceneElementCount(authenticatedPage);
+        const elementCountAfter = await getSceneElementCount(authenticatedPage);
         expect(elementCountAfter).toBe(elementCountBefore);
     });
 });

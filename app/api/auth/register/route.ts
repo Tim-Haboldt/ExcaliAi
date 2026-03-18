@@ -8,14 +8,20 @@ const registerSchema = z.object({
         .string()
         .min(3, "Username must be at least 3 characters")
         .max(32, "Username must be at most 32 characters")
-        .regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain letters, numbers, hyphens, and underscores"),
+        .regex(
+            /^[a-zA-Z0-9_-]+$/,
+            "Username can only contain letters, numbers, hyphens, and underscores",
+        ),
 });
 
 export async function POST(request: Request) {
     const body = await request.json();
     const parsed = registerSchema.safeParse(body);
     if (!parsed.success) {
-        return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+        return NextResponse.json(
+            { error: parsed.error.issues[0].message },
+            { status: 400 },
+        );
     }
 
     const { username } = parsed.data;
@@ -24,7 +30,10 @@ export async function POST(request: Request) {
         where: { username },
     });
     if (existingAccount) {
-        return NextResponse.json({ error: "Username is already taken" }, { status: 409 });
+        return NextResponse.json(
+            { error: "Username is already taken" },
+            { status: 409 },
+        );
     }
 
     const account = await database.account.create({

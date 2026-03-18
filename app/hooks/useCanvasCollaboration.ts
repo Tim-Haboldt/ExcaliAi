@@ -14,7 +14,14 @@ export function useCanvasCollaboration(
     const lastCursorEmitTime = useRef(0);
 
     const emitElementChanges = useCallback(
-        (elements: readonly { id: string; version: number; updated: number; [key: string]: unknown }[]) => {
+        (
+            elements: readonly {
+                id: string;
+                version: number;
+                updated: number;
+                [key: string]: unknown;
+            }[],
+        ) => {
             if (!socket || isApplyingRemoteUpdate.current) {
                 return;
             }

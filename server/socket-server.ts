@@ -56,10 +56,7 @@ function getCollaboratorList(projectId: string): Collaborator[] {
     return Array.from(uniqueByAccount.values());
 }
 
-function broadcastPresence(
-    socketIoServer: AppServer,
-    projectId: string,
-) {
+function broadcastPresence(socketIoServer: AppServer, projectId: string) {
     const collaborators = getCollaboratorList(projectId);
     socketIoServer.to(projectId).emit("presence:update", collaborators);
 }
@@ -89,15 +86,12 @@ function removeFromCurrentProject(
 
 const httpServer = createServer();
 
-const socketIoServer: AppServer = new Server(
-    httpServer,
-    {
-        cors: {
-            origin: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-            credentials: true,
-        },
+const socketIoServer: AppServer = new Server(httpServer, {
+    cors: {
+        origin: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+        credentials: true,
     },
-);
+});
 
 socketIoServer.use(async (socket, next) => {
     try {
@@ -138,9 +132,7 @@ socketIoServer.use(async (socket, next) => {
 });
 
 socketIoServer.on("connection", (socket) => {
-    console.log(
-        `[socket] connected: ${socket.data.username} (${socket.id})`,
-    );
+    console.log(`[socket] connected: ${socket.data.username} (${socket.id})`);
 
     socket.on("project:join", (projectId, callback) => {
         removeFromCurrentProject(socket, socketIoServer);

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useClickOutside } from "@/app/hooks/useClickOutside";
 
 interface AiQuickPromptProps {
     selectedElementIds: string[];
@@ -13,47 +14,16 @@ export function AiQuickPrompt({
 }: AiQuickPromptProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [instruction, setInstruction] = useState("");
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const popoverRef = useRef<HTMLDivElement>(null);
 
     const hasSelection = selectedElementIds.length > 0;
 
-    useEffect(() => {
-        if (isOpen) {
-            textareaRef.current?.focus();
-        }
-    }, [isOpen]);
+    const handleDismiss = useCallback(() => {
+        setIsOpen(false);
+        setInstruction("");
+    }, []);
 
-    useEffect(() => {
-        if (!isOpen) {
-            return;
-        }
-
-        function handleKeyDown(event: KeyboardEvent) {
-            if (event.key === "Escape") {
-                setIsOpen(false);
-                setInstruction("");
-            }
-        }
-
-        function handleClickOutside(event: MouseEvent) {
-            if (
-                popoverRef.current &&
-                !popoverRef.current.contains(event.target as Node)
-            ) {
-                setIsOpen(false);
-                setInstruction("");
-            }
-        }
-
-        document.addEventListener("keydown", handleKeyDown);
-        document.addEventListener("mousedown", handleClickOutside);
-
-        return () => {
-            document.removeEventListener("keydown", handleKeyDown);
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, [isOpen]);
+    useClickOutside(popoverRef, handleDismiss, isOpen);
 
     const handleSubmit = useCallback(() => {
         const trimmed = instruction.trim();
@@ -122,7 +92,7 @@ export function AiQuickPrompt({
                     )}
 
                     <textarea
-                        ref={textareaRef}
+                        autoFocus
                         value={instruction}
                         onChange={(event) => setInstruction(event.target.value)}
                         onKeyDown={handleKeyDown}

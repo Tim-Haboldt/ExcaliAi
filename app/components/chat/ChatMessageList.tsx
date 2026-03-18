@@ -104,6 +104,14 @@ function getToolLabel(
     return isDone ? labels[1] : labels[0];
 }
 
+function getPartKey(part: unknown, index: number): string {
+    if (typeof part === "object" && part !== null && "toolCallId" in part) {
+        return part.toolCallId as string;
+    }
+
+    return `${typeof part === "object" && part !== null && "type" in part ? (part as { type: string }).type : "unknown"}-${index}`;
+}
+
 type ToolUIPart = {
     type: string;
     state: string;
@@ -146,13 +154,15 @@ function MessageContent({ message }: { message: UIMessage }) {
     return (
         <>
             {message.parts.map((part, index) => {
+                const partKey = getPartKey(part, index);
+
                 if (part.type === "text") {
                     if (!part.text) {
                         return null;
                     }
 
                     return (
-                        <div key={index} className="whitespace-pre-wrap">
+                        <div key={partKey} className="whitespace-pre-wrap">
                             {part.text}
                         </div>
                     );
@@ -166,7 +176,7 @@ function MessageContent({ message }: { message: UIMessage }) {
 
                     return (
                         <div
-                            key={index}
+                            key={partKey}
                             className="my-1 flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
                         >
                             <span

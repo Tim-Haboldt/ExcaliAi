@@ -1,6 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { registerUser } from "./auth-helpers";
-import { waitForCanvas, drawRectangle, getSceneElementCount } from "./canvas-helpers";
+import {
+    waitForCanvas,
+    drawRectangle,
+    getSceneElementCount,
+} from "./canvas-helpers";
 import { sendChatMessage, waitForUserMessage } from "./chat-helpers";
 
 function uniqueUsername(label: string): string {

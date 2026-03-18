@@ -29,9 +29,9 @@ export async function registerUser(page: Page, username: string) {
     const submitButton = page.getByRole("button", { name: "Create account" });
     await submitButton.click();
 
-    await expect(
-        page.getByRole("button", { name: "Sign out" }),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible({
+        timeout: 10_000,
+    });
     await ensureProjectExists(page);
 }
 
@@ -42,9 +42,9 @@ export async function loginUser(page: Page, username: string) {
     const submitButton = page.getByRole("button", { name: "Sign in" });
     await submitButton.click();
 
-    await expect(
-        page.getByRole("button", { name: "Sign out" }),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible({
+        timeout: 10_000,
+    });
     await ensureProjectExists(page);
 }
 

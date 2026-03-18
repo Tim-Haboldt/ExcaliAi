@@ -26,9 +26,7 @@ const aiElementSchema = z.object({
     angle: z.number().optional(),
     strokeColor: z.string().optional(),
     backgroundColor: z.string().optional(),
-    fillStyle: z
-        .enum(["hachure", "cross-hatch", "solid", "zigzag"])
-        .optional(),
+    fillStyle: z.enum(["hachure", "cross-hatch", "solid", "zigzag"]).optional(),
     strokeWidth: z.number().optional(),
     strokeStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
     roughness: z.number().optional(),
@@ -316,13 +314,12 @@ export function simplifySceneForContext(sceneJson: string): string {
                         break;
                     case "arrow":
                         if (element.startArrowhead) {
-                            simplified.startArrowhead =
-                                element.startArrowhead;
+                            simplified.startArrowhead = element.startArrowhead;
                         }
                         if (element.endArrowhead) {
                             simplified.endArrowhead = element.endArrowhead;
                         }
-                        // falls through
+                    // falls through
                     case "line":
                         simplified.points = element.points;
                         break;

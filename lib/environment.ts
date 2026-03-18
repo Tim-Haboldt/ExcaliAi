@@ -43,7 +43,9 @@ function parseEnv(): Env {
                 .map((i) => `  ${i.path.join(".")}: ${i.message}`)
                 .join("\n"),
         );
-        throw new Error("Invalid environment variables – see console output above.");
+        throw new Error(
+            "Invalid environment variables – see console output above.",
+        );
     }
     return result.data;
 }

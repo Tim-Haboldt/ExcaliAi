@@ -18,6 +18,7 @@ import type {
 import { ChatPanel, type ChatPanelHandle } from "../chat/ChatPanel";
 import { ExcalidrawCanvas } from "../excalidraw/ExcalidrawCanvas";
 import { useExcalidrawOperations } from "./useExcalidrawOperations";
+import { ExcalidrawOperationsProvider } from "./ExcalidrawOperationsContext";
 import { PanelResizeHandle } from "./PanelResizeHandle";
 import { useMediaQuery } from "@/app/hooks/useMediaQuery";
 import { useSocket } from "@/app/hooks/useSocket";
@@ -159,7 +160,14 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
         );
 
         const handleCanvasChange = useCallback(
-            (elements: readonly { id: string; version: number; updated: number; [key: string]: unknown }[]) => {
+            (
+                elements: readonly {
+                    id: string;
+                    version: number;
+                    updated: number;
+                    [key: string]: unknown;
+                }[],
+            ) => {
                 emitElementChanges(elements);
             },
             [emitElementChanges],
@@ -182,8 +190,7 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
         );
 
         const excalidrawCollaborators = useMemo(
-            () =>
-                buildExcalidrawCollaborators(collaborators, currentUserId),
+            () => buildExcalidrawCollaborators(collaborators, currentUserId),
             [collaborators, currentUserId],
         );
 
@@ -207,77 +214,85 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
             (collaborator) => collaborator.accountId !== currentUserId,
         );
 
+        const excalidrawOps = useMemo(
+            () => ({
+                getScene,
+                getPng,
+                updateScene,
+                updateElements,
+                deleteElements,
+            }),
+            [getScene, getPng, updateScene, updateElements, deleteElements],
+        );
+
         return (
-            <div className="flex h-dvh w-full flex-col bg-zinc-50 dark:bg-black">
-                {hasOtherCollaborators && (
-                    <div className="flex items-center border-b border-zinc-200 px-4 py-1.5 dark:border-zinc-800">
-                        <PresenceIndicator
-                            collaborators={collaborators}
-                            currentUserId={currentUserId}
-                        />
-                    </div>
-                )}
-
-                <Group
-                    orientation={orientation}
-                    id="workspace-layout"
-                    resizeTargetMinimumSize={RESIZE_TARGET_MINIMUM_SIZE}
-                >
-                    <Panel
-                        id="canvas"
-                        defaultSize={CANVAS_DEFAULT_SIZE}
-                        minSize={CANVAS_MIN_SIZE}
-                        collapsible
-                        collapsedSize={COLLAPSED_SIZE}
-                        onResize={handleCanvasResize}
-                    >
-                        <div
-                            className="h-full w-full overflow-hidden"
-                            hidden={isCanvasCollapsed}
-                        >
-                            <ExcalidrawCanvas
-                                className="h-full w-full"
-                                excalidrawAPI={handleExcalidrawAPI}
-                                initialData={initialCanvas}
-                                theme="dark"
-                                onAiPrompt={handleAiPrompt}
-                                onChange={handleCanvasChange}
-                                onPointerUpdate={handlePointerUpdate}
-                                collaborators={excalidrawCollaborators}
+            <ExcalidrawOperationsProvider value={excalidrawOps}>
+                <div className="flex h-dvh w-full flex-col bg-zinc-50 dark:bg-black">
+                    {hasOtherCollaborators && (
+                        <div className="flex items-center border-b border-zinc-200 px-4 py-1.5 dark:border-zinc-800">
+                            <PresenceIndicator
+                                collaborators={collaborators}
+                                currentUserId={currentUserId}
                             />
                         </div>
-                    </Panel>
+                    )}
 
-                    <PanelResizeHandle orientation={orientation} />
-
-                    <Panel
-                        id="chat"
-                        defaultSize={CHAT_DEFAULT_SIZE}
-                        minSize={CHAT_MIN_SIZE}
-                        collapsible
-                        collapsedSize={COLLAPSED_SIZE}
-                        onResize={handleChatResize}
+                    <Group
+                        orientation={orientation}
+                        id="workspace-layout"
+                        resizeTargetMinimumSize={RESIZE_TARGET_MINIMUM_SIZE}
                     >
-                        <div
-                            className="h-full w-full overflow-hidden"
-                            hidden={isChatCollapsed}
+                        <Panel
+                            id="canvas"
+                            defaultSize={CANVAS_DEFAULT_SIZE}
+                            minSize={CANVAS_MIN_SIZE}
+                            collapsible
+                            collapsedSize={COLLAPSED_SIZE}
+                            onResize={handleCanvasResize}
                         >
-                            <ChatPanel
-                                ref={chatRef}
-                                className="h-full"
-                                projectId={projectId}
-                                initialMessages={initialChat}
-                                messagesRef={chatMessagesRef}
-                                getExcalidrawScene={getScene}
-                                getExcalidrawPng={getPng}
-                                updateExcalidrawScene={updateScene}
-                                updateExcalidrawElements={updateElements}
-                                deleteExcalidrawElements={deleteElements}
-                            />
-                        </div>
-                    </Panel>
-                </Group>
-            </div>
+                            <div
+                                className="h-full w-full overflow-hidden"
+                                hidden={isCanvasCollapsed}
+                            >
+                                <ExcalidrawCanvas
+                                    className="h-full w-full"
+                                    excalidrawAPI={handleExcalidrawAPI}
+                                    initialData={initialCanvas}
+                                    theme="dark"
+                                    onAiPrompt={handleAiPrompt}
+                                    onChange={handleCanvasChange}
+                                    onPointerUpdate={handlePointerUpdate}
+                                    collaborators={excalidrawCollaborators}
+                                />
+                            </div>
+                        </Panel>
+
+                        <PanelResizeHandle orientation={orientation} />
+
+                        <Panel
+                            id="chat"
+                            defaultSize={CHAT_DEFAULT_SIZE}
+                            minSize={CHAT_MIN_SIZE}
+                            collapsible
+                            collapsedSize={COLLAPSED_SIZE}
+                            onResize={handleChatResize}
+                        >
+                            <div
+                                className="h-full w-full overflow-hidden"
+                                hidden={isChatCollapsed}
+                            >
+                                <ChatPanel
+                                    ref={chatRef}
+                                    className="h-full"
+                                    projectId={projectId}
+                                    initialMessages={initialChat}
+                                    messagesRef={chatMessagesRef}
+                                />
+                            </div>
+                        </Panel>
+                    </Group>
+                </div>
+            </ExcalidrawOperationsProvider>
         );
     },
 );

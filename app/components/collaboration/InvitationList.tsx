@@ -12,33 +12,13 @@ export interface PendingInvitation {
 
 interface InvitationListProps {
     invitations: PendingInvitation[];
-    onAccept: (invitationId: string) => void;
-    onDecline: (invitationId: string) => void;
 }
 
-export function InvitationList({
-    invitations,
-    onAccept,
-    onDecline,
-}: InvitationListProps) {
+export function InvitationList({ invitations }: InvitationListProps) {
     const respondMutation = useRespondToInvitation();
 
     function handleAction(invitationId: string, action: "accept" | "decline") {
-        respondMutation.mutate(
-            { invitationId, action },
-            {
-                onSuccess: (completedAction) => {
-                    switch (completedAction) {
-                        case "accept":
-                            onAccept(invitationId);
-                            break;
-                        case "decline":
-                            onDecline(invitationId);
-                            break;
-                    }
-                },
-            },
-        );
+        respondMutation.mutate({ invitationId, action });
     }
 
     if (invitations.length === 0) {
