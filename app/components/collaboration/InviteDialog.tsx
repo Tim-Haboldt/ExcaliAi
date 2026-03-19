@@ -52,17 +52,36 @@ export function InviteDialog({ projectId, onClose }: InviteDialogProps) {
         [projectId, username, sendInvitationMutation],
     );
 
+    const handleKeyDown = useCallback(
+        (event: React.KeyboardEvent) => {
+            if (event.key === "Escape") {
+                onClose();
+            }
+        },
+        [onClose],
+    );
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invite-dialog-title"
+            onKeyDown={handleKeyDown}
+        >
             <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
                 <div className="mb-4 flex items-center justify-between">
-                    <h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                    <h2
+                        id="invite-dialog-title"
+                        className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-50"
+                    >
                         <UserPlus size={16} />
                         Invite Collaborator
                     </h2>
                     <button
                         type="button"
                         onClick={onClose}
+                        aria-label="Dismiss"
                         className="rounded p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
                     >
                         <X size={16} />

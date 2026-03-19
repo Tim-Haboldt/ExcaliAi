@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { database } from "@/lib/database";
 import { getAuthenticatedSession } from "@/lib/session";
+
+const MAX_PROJECT_DATA_SIZE = 10 * 1024 * 1024; // 10 MB
+
+const updateProjectSchema = z
+    .object({
+        chat: z.unknown().optional(),
+        canvas: z.unknown().optional(),
+    })
+    .refine((data) => JSON.stringify(data).length <= MAX_PROJECT_DATA_SIZE, {
+        message: "Project data exceeds maximum allowed size",
+    });
 
 interface RouteContext {
     params: Promise<{ id: string }>;
@@ -61,14 +73,28 @@ export async function PUT(request: Request, context: RouteContext) {
         );
     }
 
-    const body = await request.json();
+    let body: unknown;
+    try {
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
+    const parsed = updateProjectSchema.safeParse(body);
+    if (!parsed.success) {
+        return NextResponse.json(
+            { error: parsed.error.issues[0].message },
+            { status: 400 },
+        );
+    }
+
     const updateData: Record<string, unknown> = {};
 
-    if (body.chat !== undefined) {
-        updateData.chat = body.chat;
+    if (parsed.data.chat !== undefined) {
+        updateData.chat = parsed.data.chat;
     }
-    if (body.canvas !== undefined) {
-        updateData.canvas = body.canvas;
+    if (parsed.data.canvas !== undefined) {
+        updateData.canvas = parsed.data.canvas;
     }
 
     const updatedProject = await database.project.update({

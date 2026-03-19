@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { database } from "@/lib/database";
 import { getAuthenticatedSession } from "@/lib/session";
+
+const sendInvitationSchema = z.object({
+    projectId: z.string().min(1, "projectId is required"),
+    username: z
+        .string()
+        .min(1, "username is required")
+        .max(32, "username must be at most 32 characters"),
+});
 
 export async function GET() {
     const session = await getAuthenticatedSession();
@@ -33,15 +42,22 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { projectId, username } = body;
+    let body: unknown;
+    try {
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
 
-    if (!projectId || !username) {
+    const parsed = sendInvitationSchema.safeParse(body);
+    if (!parsed.success) {
         return NextResponse.json(
-            { error: "projectId and username are required" },
+            { error: parsed.error.issues[0].message },
             { status: 400 },
         );
     }
+
+    const { projectId, username } = parsed.data;
 
     if (username === session.username) {
         return NextResponse.json(

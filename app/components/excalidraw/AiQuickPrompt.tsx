@@ -61,6 +61,12 @@ export function AiQuickPrompt({
                         ? `Ask AI about ${selectedElementIds.length} selected element(s)`
                         : "Select elements, then ask AI"
                 }
+                aria-label={
+                    hasSelection
+                        ? `Ask AI about ${selectedElementIds.length} selected element(s)`
+                        : "Ask AI"
+                }
+                aria-expanded={isOpen}
                 className={[
                     "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
                     hasSelection

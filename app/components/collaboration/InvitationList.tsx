@@ -60,6 +60,7 @@ export function InvitationList({ invitations }: InvitationListProps) {
                                 disabled={isProcessing}
                                 className="rounded p-1 text-green-600 hover:bg-green-50 disabled:opacity-50 dark:text-green-400 dark:hover:bg-green-950"
                                 title="Accept"
+                                aria-label="Accept invitation"
                             >
                                 <Check size={14} />
                             </button>
@@ -71,6 +72,7 @@ export function InvitationList({ invitations }: InvitationListProps) {
                                 disabled={isProcessing}
                                 className="rounded p-1 text-red-500 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950"
                                 title="Decline"
+                                aria-label="Decline invitation"
                             >
                                 <X size={14} />
                             </button>

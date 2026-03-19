@@ -48,11 +48,21 @@ export default function ExcalidrawInner({
     const handleExcalidrawApi = useCallback(
         (api: ExcalidrawImperativeAPI) => {
             excalidrawApiRef.current = api;
-            window.__EXCALIDRAW_API__ = api;
+            if (process.env.NODE_ENV === "development") {
+                window.__EXCALIDRAW_API__ = api;
+            }
             props.excalidrawAPI?.(api);
         },
         [props.excalidrawAPI],
     );
+
+    useEffect(() => {
+        return () => {
+            if (process.env.NODE_ENV === "development") {
+                delete window.__EXCALIDRAW_API__;
+            }
+        };
+    }, []);
 
     useEffect(() => {
         const api = excalidrawApiRef.current;

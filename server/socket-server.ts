@@ -3,6 +3,9 @@ import { Server, type Socket } from "socket.io";
 import { unsealData } from "iron-session";
 import { parse as parseCookie } from "cookie";
 import dotenv from "dotenv";
+import { z } from "zod";
+import { PrismaClient } from "../lib/generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import type {
     ServerToClientEvents,
     ClientToServerEvents,
@@ -12,13 +15,23 @@ import type {
 
 dotenv.config();
 
-const SESSION_SECRET = process.env.SESSION_SECRET;
-if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
-    throw new Error("SESSION_SECRET must be set and at least 32 characters.");
-}
+const socketEnvSchema = z.object({
+    DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+    SESSION_SECRET: z
+        .string()
+        .min(32, "SESSION_SECRET must be at least 32 characters"),
+    SOCKET_PORT: z.string().default("3001"),
+    NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+});
 
+const socketEnv = socketEnvSchema.parse(process.env);
+
+const adapter = new PrismaPg({ connectionString: socketEnv.DATABASE_URL });
+const database = new PrismaClient({ adapter });
+
+const SESSION_SECRET = socketEnv.SESSION_SECRET;
 const COOKIE_NAME = "excali-ai-session";
-const PORT = Number(process.env.SOCKET_PORT ?? 3001);
+const PORT = Number(socketEnv.SOCKET_PORT);
 
 interface SocketData extends SocketSessionData {
     currentProjectId: string | null;
@@ -88,7 +101,7 @@ const httpServer = createServer();
 
 const socketIoServer: AppServer = new Server(httpServer, {
     cors: {
-        origin: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+        origin: socketEnv.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
         credentials: true,
     },
 });
@@ -134,7 +147,22 @@ socketIoServer.use(async (socket, next) => {
 socketIoServer.on("connection", (socket) => {
     console.log(`[socket] connected: ${socket.data.username} (${socket.id})`);
 
-    socket.on("project:join", (projectId, callback) => {
+    socket.on("project:join", async (projectId, callback) => {
+        const membership = await database.projectMember.findUnique({
+            where: {
+                projectId_accountId: {
+                    projectId,
+                    accountId: socket.data.accountId,
+                },
+            },
+        });
+
+        if (!membership || membership.deleted) {
+            callback({ success: false, error: "Not a member of this project" });
+
+            return;
+        }
+
         removeFromCurrentProject(socket, socketIoServer);
 
         socket.join(projectId);

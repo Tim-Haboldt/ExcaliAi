@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 type ChatComposerProps = {
     onSend: (content: string) => void | Promise<void>;
@@ -14,17 +14,19 @@ export function ChatComposer({
     disabled,
 }: ChatComposerProps) {
     const [value, setValue] = useState("");
+    const valueRef = useRef(value);
+    valueRef.current = value;
 
     const submit = useCallback(async () => {
         if (disabled) {
             return;
         }
 
-        const content = value;
+        const content = valueRef.current;
         setValue("");
 
         await onSend(content);
-    }, [onSend, value, disabled]);
+    }, [onSend, disabled]);
 
     const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === "Enter" && !event.shiftKey) {
@@ -49,6 +51,7 @@ export function ChatComposer({
                     type="button"
                     onClick={() => void submit()}
                     disabled={disabled}
+                    aria-label="Send message"
                     className="h-[44px] shrink-0 rounded-xl bg-zinc-900 px-4 text-sm font-medium text-zinc-50 hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
                 >
                     Send

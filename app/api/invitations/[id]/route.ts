@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { database } from "@/lib/database";
 import { getAuthenticatedSession } from "@/lib/session";
+
+const respondSchema = z.object({
+    action: z.enum(["accept", "decline"]),
+});
 
 interface RouteContext {
     params: Promise<{ id: string }>;
@@ -13,15 +18,23 @@ export async function PUT(request: Request, context: RouteContext) {
     }
 
     const { id } = await context.params;
-    const body = await request.json();
-    const { action } = body;
 
-    if (action !== "accept" && action !== "decline") {
+    let body: unknown;
+    try {
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
+    const parsed = respondSchema.safeParse(body);
+    if (!parsed.success) {
         return NextResponse.json(
-            { error: "action must be 'accept' or 'decline'" },
+            { error: parsed.error.issues[0].message },
             { status: 400 },
         );
     }
+
+    const { action } = parsed.data;
 
     const invitation = await database.invitation.findUnique({
         where: { id },

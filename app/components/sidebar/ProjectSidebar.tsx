@@ -84,6 +84,10 @@ export function ProjectSidebar({
                     onClick={() => setIsCollapsed((previous) => !previous)}
                     className="flex-shrink-0 rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
                     title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                    aria-label={
+                        isCollapsed ? "Expand sidebar" : "Collapse sidebar"
+                    }
+                    aria-expanded={!isCollapsed}
                 >
                     {isCollapsed ? (
                         <PanelLeftOpen size={18} />
@@ -156,6 +160,7 @@ export function ProjectSidebar({
                                         }}
                                         className="flex-shrink-0 rounded p-1.5 text-zinc-400 opacity-0 transition-opacity hover:text-blue-500 group-hover:opacity-100 dark:text-zinc-500 dark:hover:text-blue-400"
                                         title="Invite collaborator"
+                                        aria-label="Invite collaborator"
                                     >
                                         <UserPlus size={14} />
                                     </button>
@@ -168,6 +173,7 @@ export function ProjectSidebar({
                                         }}
                                         className="mr-1 flex-shrink-0 rounded p-1.5 text-zinc-400 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100 dark:text-zinc-500 dark:hover:text-red-400"
                                         title="Delete project"
+                                        aria-label="Delete project"
                                     >
                                         <Trash2 size={14} />
                                     </button>

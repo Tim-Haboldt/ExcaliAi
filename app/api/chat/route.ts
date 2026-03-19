@@ -14,6 +14,7 @@ import {
     aiDeleteElementsSchema,
     simplifySceneForContext,
 } from "@/lib/ai/excalidraw-ai-schema";
+import { getAuthenticatedSession } from "@/lib/session";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
     return (
@@ -81,8 +82,8 @@ function buildTools(scene: string | null, png: string | null) {
 
         getCanvasPng: tool({
             description:
-                "Get a PNG screenshot of the current canvas to visually inspect the result. " +
-                "Call this AFTER making changes, in a separate step.",
+                "Capture a PNG export of the current canvas and return metadata. " +
+                "Call this AFTER making changes, in a separate step, to confirm the export succeeded.",
             inputSchema: z.object({}),
             execute: async () => {
                 if (!png) {
@@ -139,6 +140,14 @@ function buildTools(scene: string | null, png: string | null) {
 }
 
 export async function POST(req: Request) {
+    const session = await getAuthenticatedSession();
+    if (!session) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+        });
+    }
+
     try {
         const { messages: uiMessages, scene, png } = await req.json();
         const tools = buildTools(scene ?? null, png ?? null);

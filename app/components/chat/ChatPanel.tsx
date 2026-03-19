@@ -179,6 +179,11 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
         const remoteMessageIds = useRef(new Set<string>());
 
         useEffect(() => {
+            broadcastedUserMessageIds.current.clear();
+            remoteMessageIds.current.clear();
+        }, [projectId]);
+
+        useEffect(() => {
             if (!socket) {
                 return;
             }

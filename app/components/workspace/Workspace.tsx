@@ -133,18 +133,22 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
             }, AUTO_SAVE_INTERVAL_MS);
 
             return () => clearInterval(interval);
-        }, [projectId, getScene]);
+        }, [projectId, getScene, saveProjectMutation]);
 
-        useImperativeHandle(ref, () => ({
-            async getState() {
-                const canvas = await getScene();
+        useImperativeHandle(
+            ref,
+            () => ({
+                async getState() {
+                    const canvas = await getScene();
 
-                return {
-                    chat: chatMessagesRef.current,
-                    canvas,
-                };
-            },
-        }));
+                    return {
+                        chat: chatMessagesRef.current,
+                        canvas,
+                    };
+                },
+            }),
+            [getScene],
+        );
 
         const handleAiPrompt = useCallback(
             (instruction: string, selectedElementIds: string[]) => {

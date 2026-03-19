@@ -46,12 +46,43 @@ interface AuthenticatedAppProps {
     user: { id: string; username: string };
 }
 
+function ErrorToast({
+    message,
+    onDismiss,
+}: {
+    message: string;
+    onDismiss: () => void;
+}) {
+    return (
+        <div
+            role="alert"
+            className="fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+        >
+            <span>{message}</span>
+            <button
+                type="button"
+                onClick={onDismiss}
+                aria-label="Dismiss error"
+                className="shrink-0 text-red-400 hover:text-red-600 dark:hover:text-red-200"
+            >
+                &times;
+            </button>
+        </div>
+    );
+}
+
 function AuthenticatedApp({ user }: AuthenticatedAppProps) {
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
         null,
     );
     const [isSwitching, setIsSwitching] = useState(false);
     const [inviteProjectId, setInviteProjectId] = useState<string | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+    const showError = useCallback((message: string) => {
+        setErrorMessage(message);
+        setTimeout(() => setErrorMessage(null), 5000);
+    }, []);
 
     const workspaceRef = useRef<WorkspaceHandle>(null);
     const { socket, joinProject, leaveProject, collaborators } = useSocket();
@@ -66,7 +97,8 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
         [selectedProjectId, projects],
     );
 
-    const { data: currentProject } = useProject(activeProjectId);
+    const { data: currentProject, isLoading: isProjectLoading } =
+        useProject(activeProjectId);
 
     const createProjectMutation = useCreateProject();
     const saveProjectMutation = useSaveProject();
@@ -79,12 +111,15 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
 
         joinProject(activeProjectId).catch((joinError) => {
             console.error("Failed to join project room:", joinError);
+            showError(
+                "Failed to join project room. Real-time collaboration may not work.",
+            );
         });
 
         return () => {
             leaveProject();
         };
-    }, [activeProjectId, socket, joinProject, leaveProject]);
+    }, [activeProjectId, socket, joinProject, leaveProject, showError]);
 
     const saveCurrentProject = useCallback(async () => {
         if (!activeProjectId || !workspaceRef.current) {
@@ -100,8 +135,9 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
             });
         } catch (saveError) {
             console.error("Failed to save project:", saveError);
+            showError("Failed to save project.");
         }
-    }, [activeProjectId, saveProjectMutation]);
+    }, [activeProjectId, saveProjectMutation, showError]);
 
     const handleProjectSelect = useCallback(
         async (projectId: string) => {
@@ -109,10 +145,17 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
                 return;
             }
 
-            await saveCurrentProject();
             setIsSwitching(true);
-            setSelectedProjectId(projectId);
-            setIsSwitching(false);
+
+            try {
+                await saveCurrentProject();
+                setSelectedProjectId(projectId);
+            } catch (switchError) {
+                console.error("Failed to switch project:", switchError);
+                showError("Failed to switch project.");
+            } finally {
+                setIsSwitching(false);
+            }
         },
         [activeProjectId, saveCurrentProject],
     );
@@ -126,6 +169,7 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
             setSelectedProjectId(newProjectId);
         } catch (createError) {
             console.error("Failed to create project:", createError);
+            showError("Failed to create project.");
         } finally {
             setIsSwitching(false);
         }
@@ -141,6 +185,7 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
                 }
             } catch (deleteError) {
                 console.error("Failed to delete project:", deleteError);
+                showError("Failed to delete project.");
             }
         },
         [activeProjectId, deleteProjectMutation],
@@ -167,9 +212,14 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
             />
 
             <div className="flex-1">
-                {isSwitching ? (
+                {isSwitching || isProjectLoading ? (
                     <div className="flex h-full items-center justify-center">
-                        <p className="text-foreground/50">Loading project...</p>
+                        <div className="flex items-center gap-2">
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-50" />
+                            <p className="text-sm text-foreground/50">
+                                Loading project...
+                            </p>
+                        </div>
                     </div>
                 ) : currentProject ? (
                     <Workspace
@@ -203,6 +253,13 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
                 <InviteDialog
                     projectId={inviteProjectId}
                     onClose={() => setInviteProjectId(null)}
+                />
+            )}
+
+            {errorMessage && (
+                <ErrorToast
+                    message={errorMessage}
+                    onDismiss={() => setErrorMessage(null)}
                 />
             )}
         </div>
