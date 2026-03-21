@@ -160,9 +160,8 @@ export function useExcalidrawOperations() {
             return;
         }
 
-        const { parseMermaidToExcalidraw } = await import(
-            "@excalidraw/mermaid-to-excalidraw"
-        );
+        const { parseMermaidToExcalidraw } =
+            await import("@excalidraw/mermaid-to-excalidraw");
         const { convertToExcalidrawElements, CaptureUpdateAction } =
             await import("@excalidraw/excalidraw");
 

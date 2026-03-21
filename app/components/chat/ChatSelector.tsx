@@ -100,7 +100,10 @@ export function ChatSelector({
 
             {isOpen && (
                 <div className="absolute top-full left-0 z-50 mt-1 w-full min-w-[200px] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-                    <div role="listbox" className="max-h-64 overflow-y-auto py-1">
+                    <div
+                        role="listbox"
+                        className="max-h-64 overflow-y-auto py-1"
+                    >
                         {chats.map((chat) => {
                             const isActive = chat.id === activeChatId;
                             const canDelete = chats.length > 1;
