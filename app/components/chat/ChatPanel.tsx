@@ -13,19 +13,28 @@ import {
 } from "react";
 import { ChatComposer } from "./ChatComposer";
 import { ChatMessageList } from "./ChatMessageList";
+import { ChatSelector } from "./ChatSelector";
 import {
     type AiCanvasUpdate,
     type AiElement,
+    type AiLabeledShape,
     convertAiToExcalidrawScene,
+    expandLabeledShapesToElements,
 } from "@/lib/ai/excalidraw-ai-schema";
 import { useSocket } from "@/app/hooks/useSocket";
 import { useExcalidrawOps } from "../workspace/ExcalidrawOperationsContext";
+import type { ChatSummary } from "@/app/hooks/useChats";
 
 type ChatPanelProps = {
     className?: string;
     projectId: string;
+    chatId: string;
+    chats: ChatSummary[];
     initialMessages?: UIMessage[];
     messagesRef?: MutableRefObject<UIMessage[]>;
+    onChatSelect: (chatId: string) => void;
+    onNewChat: () => void;
+    onDeleteChat: (chatId: string) => void;
 };
 
 export interface ChatPanelHandle {
@@ -34,7 +43,17 @@ export interface ChatPanelHandle {
 
 export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
     function ChatPanel(
-        { className, projectId, initialMessages, messagesRef },
+        {
+            className,
+            projectId,
+            chatId,
+            chats,
+            initialMessages,
+            messagesRef,
+            onChatSelect,
+            onNewChat,
+            onDeleteChat,
+        },
         ref,
     ) {
         const {
@@ -43,6 +62,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
             updateScene,
             updateElements,
             deleteElements,
+            renderMermaid,
         } = useExcalidrawOps();
 
         const getSceneRef = useRef(getScene);
@@ -60,9 +80,15 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
         const deleteElementsRef = useRef(deleteElements);
         deleteElementsRef.current = deleteElements;
 
+        const renderMermaidRef = useRef(renderMermaid);
+        renderMermaidRef.current = renderMermaid;
+
         const { socket } = useSocket();
         const socketRef = useRef(socket);
         socketRef.current = socket;
+
+        const chatIdRef = useRef(chatId);
+        chatIdRef.current = chatId;
 
         const transport = useMemo(
             () =>
@@ -158,6 +184,33 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
                         }
                         break;
                     }
+                    case "createLabeledShapes": {
+                        try {
+                            const expanded = expandLabeledShapesToElements(
+                                input.shapes as AiLabeledShape[],
+                            );
+                            void updateElementsRef.current?.(expanded);
+                        } catch (labelError) {
+                            console.error(
+                                "Failed to create labeled shapes:",
+                                labelError,
+                            );
+                        }
+                        break;
+                    }
+                    case "renderMermaid": {
+                        try {
+                            void renderMermaidRef.current?.(
+                                input.mermaidSyntax as string,
+                            );
+                        } catch (mermaidError) {
+                            console.error(
+                                "Failed to render Mermaid diagram:",
+                                mermaidError,
+                            );
+                        }
+                        break;
+                    }
                 }
             },
             onFinish({ message }) {
@@ -167,6 +220,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
                 }
 
                 currentSocket.emit("chat:message", {
+                    chatId: chatIdRef.current,
                     message: message as unknown as Record<string, unknown>,
                 });
             },
@@ -181,7 +235,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
         useEffect(() => {
             broadcastedUserMessageIds.current.clear();
             remoteMessageIds.current.clear();
-        }, [projectId]);
+        }, [projectId, chatId]);
 
         useEffect(() => {
             if (!socket) {
@@ -203,10 +257,11 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
 
                 broadcastedUserMessageIds.current.add(message.id);
                 socket.emit("chat:message", {
+                    chatId,
                     message: message as unknown as Record<string, unknown>,
                 });
             }
-        }, [messages, socket]);
+        }, [messages, socket, chatId]);
 
         useEffect(() => {
             if (!socket) {
@@ -214,9 +269,14 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
             }
 
             const handleRemoteMessage = (payload: {
+                chatId: string;
                 message: Record<string, unknown>;
                 senderId: string;
             }) => {
+                if (payload.chatId !== chatIdRef.current) {
+                    return;
+                }
+
                 const remoteMessage = payload.message as unknown as UIMessage;
                 remoteMessageIds.current.add(remoteMessage.id);
 
@@ -291,13 +351,14 @@ export const ChatPanel = forwardRef<ChatPanelHandle, ChatPanelProps>(
                     className,
                 ].join(" ")}
             >
-                <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                        Chat
-                    </div>
-                    <div className="text-xs text-zinc-500">
-                        AI-powered canvas assistant
-                    </div>
+                <div className="border-b border-zinc-200 px-2 py-2 dark:border-zinc-800">
+                    <ChatSelector
+                        chats={chats}
+                        activeChatId={chatId}
+                        onChatSelect={onChatSelect}
+                        onNewChat={onNewChat}
+                        onDeleteChat={onDeleteChat}
+                    />
                 </div>
 
                 <ChatMessageList

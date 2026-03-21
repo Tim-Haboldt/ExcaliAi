@@ -12,6 +12,8 @@ import {
     aiCanvasUpdateSchema,
     aiUpdateElementsSchema,
     aiDeleteElementsSchema,
+    aiCreateLabeledShapesSchema,
+    aiRenderMermaidSchema,
     simplifySceneForContext,
 } from "@/lib/ai/excalidraw-ai-schema";
 import { getAuthenticatedSession } from "@/lib/session";
@@ -82,8 +84,8 @@ function buildTools(scene: string | null, png: string | null) {
 
         getCanvasPng: tool({
             description:
-                "Capture a PNG export of the current canvas and return metadata. " +
-                "Call this AFTER making changes, in a separate step, to confirm the export succeeded.",
+                "Get a PNG screenshot of the current canvas so you can visually verify your work. " +
+                "Call this AFTER making changes, in a separate step, to see the result and check for issues.",
             inputSchema: z.object({}),
             execute: async () => {
                 if (!png) {
@@ -96,7 +98,32 @@ function buildTools(scene: string | null, png: string | null) {
                 return {
                     success: true,
                     message: "PNG screenshot captured successfully.",
-                    imageSizeBytes: Math.round((png.length * 3) / 4),
+                    base64: png,
+                };
+            },
+            toModelOutput({ output }) {
+                if (!output.success || !output.base64) {
+                    return {
+                        type: "text" as const,
+                        value:
+                            output.message ??
+                            "No PNG available — canvas may be empty.",
+                    };
+                }
+
+                return {
+                    type: "content" as const,
+                    value: [
+                        {
+                            type: "text" as const,
+                            text: "Here is the current canvas screenshot. Inspect it for alignment, readability, and quality issues.",
+                        },
+                        {
+                            type: "file-data" as const,
+                            data: output.base64,
+                            mediaType: "image/png",
+                        },
+                    ],
                 };
             },
         }),
@@ -136,6 +163,34 @@ function buildTools(scene: string | null, png: string | null) {
                 message: `${params.elementIds.length} element(s) deleted.`,
             }),
         }),
+
+        createLabeledShapes: tool({
+            description:
+                "Create shapes with centered text labels. Each entry produces a shape " +
+                "(rectangle, diamond, or ellipse) with a properly centered and grouped " +
+                "text label inside it. Use this instead of manually creating separate " +
+                "shape + text element pairs.",
+            inputSchema: aiCreateLabeledShapesSchema,
+            execute: async (params) => ({
+                success: true,
+                message: `${params.shapes.length} labeled shape(s) created.`,
+            }),
+        }),
+
+        renderMermaid: tool({
+            description:
+                "Render a Mermaid diagram on the canvas. Accepts valid Mermaid syntax " +
+                "(flowcharts work best) and converts it to Excalidraw elements. " +
+                "Use this when the user asks for flowcharts, process diagrams, or " +
+                "any diagram that can be expressed in Mermaid syntax. " +
+                "This replaces the entire canvas with the rendered diagram.",
+            inputSchema: aiRenderMermaidSchema,
+            execute: async (params) => ({
+                success: true,
+                message: "Mermaid diagram rendered on canvas.",
+                mermaidSyntax: params.mermaidSyntax,
+            }),
+        }),
     };
 }
 
@@ -162,7 +217,7 @@ export async function POST(req: Request) {
             system: SYSTEM_PROMPT,
             messages: modelMessages,
             tools,
-            stopWhen: stepCountIs(5),
+            stopWhen: stepCountIs(10),
             prepareStep: ({ messages: stepMessages }) => ({
                 messages: ensureToolInputsAreObjects(stepMessages),
             }),

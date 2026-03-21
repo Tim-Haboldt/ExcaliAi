@@ -18,6 +18,7 @@ export interface ServerToClientEvents {
         button: "up" | "down";
     }) => void;
     "chat:remote-message": (payload: {
+        chatId: string;
         message: Record<string, unknown>;
         senderId: string;
     }) => void;
@@ -35,7 +36,10 @@ export interface ClientToServerEvents {
         pointer: { x: number; y: number } | null;
         button: "up" | "down";
     }) => void;
-    "chat:message": (payload: { message: Record<string, unknown> }) => void;
+    "chat:message": (payload: {
+        chatId: string;
+        message: Record<string, unknown>;
+    }) => void;
 }
 
 export interface SocketSessionData {

@@ -69,6 +69,11 @@ export async function POST() {
                     role: "owner",
                 },
             },
+            chats: {
+                create: {
+                    createdById: session.accountId,
+                },
+            },
         },
     });
 

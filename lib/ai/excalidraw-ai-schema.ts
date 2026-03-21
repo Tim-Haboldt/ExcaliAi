@@ -42,6 +42,8 @@ const aiElementSchema = z.object({
     points: z.array(z.array(z.number())).optional(),
     startArrowhead: z.string().nullable().optional(),
     endArrowhead: z.string().nullable().optional(),
+    startElementId: z.string().nullable().optional(),
+    endElementId: z.string().nullable().optional(),
 
     name: z.string().nullable().optional(),
 
@@ -68,6 +70,97 @@ export const aiDeleteElementsSchema = z.object({
 });
 
 export type AiDeleteElements = z.infer<typeof aiDeleteElementsSchema>;
+
+// ---------------------------------------------------------------------------
+// Labeled shapes — a compound tool that creates shape + centered text pairs
+// ---------------------------------------------------------------------------
+
+const aiLabeledShapeSchema = z.object({
+    shapeType: z.enum(["rectangle", "diamond", "ellipse"]),
+    label: z.string(),
+    id: z.string(),
+    x: z.number(),
+    y: z.number(),
+    width: z.number(),
+    height: z.number(),
+    strokeColor: z.string().optional(),
+    backgroundColor: z.string().optional(),
+    fillStyle: z.enum(["hachure", "cross-hatch", "solid", "zigzag"]).optional(),
+    strokeWidth: z.number().optional(),
+    strokeStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
+    roughness: z.number().optional(),
+    opacity: z.number().optional(),
+    fontSize: z.number().optional(),
+    fontFamily: z.number().optional(),
+});
+
+export type AiLabeledShape = z.infer<typeof aiLabeledShapeSchema>;
+
+export const aiCreateLabeledShapesSchema = z.object({
+    shapes: z.array(aiLabeledShapeSchema),
+});
+
+export type AiCreateLabeledShapes = z.infer<typeof aiCreateLabeledShapesSchema>;
+
+// ---------------------------------------------------------------------------
+// Mermaid rendering — accepts Mermaid syntax and converts it client-side
+// ---------------------------------------------------------------------------
+
+export const aiRenderMermaidSchema = z.object({
+    mermaidSyntax: z
+        .string()
+        .describe("A valid Mermaid diagram definition string"),
+});
+
+export type AiRenderMermaid = z.infer<typeof aiRenderMermaidSchema>;
+
+export function expandLabeledShapesToElements(
+    shapes: AiLabeledShape[],
+): AiElement[] {
+    const elements: AiElement[] = [];
+
+    for (const shape of shapes) {
+        const groupId = `group_${shape.id}`;
+        const fontSize = shape.fontSize ?? 20;
+        const textHeight = Math.ceil(fontSize * 1.25);
+
+        elements.push({
+            type: shape.shapeType,
+            id: shape.id,
+            x: shape.x,
+            y: shape.y,
+            width: shape.width,
+            height: shape.height,
+            strokeColor: shape.strokeColor,
+            backgroundColor: shape.backgroundColor,
+            fillStyle: shape.fillStyle,
+            strokeWidth: shape.strokeWidth,
+            strokeStyle: shape.strokeStyle,
+            roughness: shape.roughness,
+            opacity: shape.opacity,
+            groupIds: [groupId],
+        });
+
+        elements.push({
+            type: "text",
+            id: `label_${shape.id}`,
+            x: shape.x,
+            y: shape.y + (shape.height - textHeight) / 2,
+            width: shape.width,
+            height: textHeight,
+            text: shape.label,
+            fontSize,
+            fontFamily: shape.fontFamily,
+            textAlign: "center",
+            verticalAlign: "middle",
+            strokeColor: shape.strokeColor,
+            opacity: shape.opacity,
+            groupIds: [groupId],
+        });
+    }
+
+    return elements;
+}
 
 // ---------------------------------------------------------------------------
 // AI schema → Excalidraw scene conversion
@@ -229,6 +322,8 @@ export function convertAiElementToExcalidraw(element: AiElement) {
                 endBinding: null,
                 startArrowhead: element.startArrowhead ?? null,
                 endArrowhead: element.endArrowhead ?? "arrow",
+                _startElementId: element.startElementId ?? null,
+                _endElementId: element.endElementId ?? null,
             };
 
         case "freedraw":
@@ -255,14 +350,100 @@ export function convertAiElementToExcalidraw(element: AiElement) {
 }
 
 export function convertAiToExcalidrawScene(update: AiCanvasUpdate) {
+    const converted = update.elements.map(convertAiElementToExcalidraw);
+    const resolved = resolveArrowBindings(
+        converted as unknown as ConvertedElement[],
+    );
+
     return {
         type: SCENE_TYPE,
         version: 2,
-        elements: update.elements.map(convertAiElementToExcalidraw),
-        appState: {
-            viewBackgroundColor: update.viewBackgroundColor ?? "#ffffff",
-        },
+        elements: resolved,
+        ...(update.viewBackgroundColor !== undefined && {
+            appState: { viewBackgroundColor: update.viewBackgroundColor },
+        }),
     };
+}
+
+// ---------------------------------------------------------------------------
+// Arrow binding resolution — resolves startElementId/endElementId into
+// proper Excalidraw binding metadata after all elements are converted.
+// ---------------------------------------------------------------------------
+
+interface ConvertedElement {
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    boundElements: { id: string; type: string }[] | null;
+    _startElementId?: string | null;
+    _endElementId?: string | null;
+    startBinding?: {
+        elementId: string;
+        focus: number;
+        gap: number;
+        fixedPoint: [number, number] | null;
+    } | null;
+    endBinding?: {
+        elementId: string;
+        focus: number;
+        gap: number;
+        fixedPoint: [number, number] | null;
+    } | null;
+    [key: string]: unknown;
+}
+
+export function resolveArrowBindings(
+    elements: ConvertedElement[],
+): ConvertedElement[] {
+    const elementMap = new Map<string, ConvertedElement>();
+    for (const element of elements) {
+        elementMap.set(element.id, element);
+    }
+
+    for (const element of elements) {
+        if (element.type !== "arrow") {
+            continue;
+        }
+
+        const startId = element._startElementId;
+        const endId = element._endElementId;
+
+        if (startId) {
+            const target = elementMap.get(startId);
+            if (target) {
+                element.startBinding = {
+                    elementId: startId,
+                    focus: 0,
+                    gap: 4,
+                    fixedPoint: null,
+                };
+                target.boundElements = target.boundElements ?? [];
+                target.boundElements.push({ id: element.id, type: "arrow" });
+            }
+        }
+
+        if (endId) {
+            const target = elementMap.get(endId);
+            if (target) {
+                element.endBinding = {
+                    elementId: endId,
+                    focus: 0,
+                    gap: 4,
+                    fixedPoint: null,
+                };
+                target.boundElements = target.boundElements ?? [];
+                target.boundElements.push({ id: element.id, type: "arrow" });
+            }
+        }
+
+        delete element._startElementId;
+        delete element._endElementId;
+    }
+
+    return elements;
 }
 
 // ---------------------------------------------------------------------------

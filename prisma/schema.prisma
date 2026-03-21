@@ -13,16 +13,29 @@ model Account {
     memberships         ProjectMember[]
     sentInvitations     Invitation[]    @relation("inviter")
     receivedInvitations Invitation[]    @relation("invitee")
+    chats               Chat[]
 }
 
 model Project {
     id          String          @id @default(cuid())
     members     ProjectMember[]
     invitations Invitation[]
-    chat        Json            @default("[]")
+    chats       Chat[]
     canvas      Json            @default("{}")
     createdAt   DateTime        @default(now())
     updatedAt   DateTime        @updatedAt
+}
+
+model Chat {
+    id          String   @id @default(cuid())
+    projectId   String
+    project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdById String
+    createdBy   Account  @relation(fields: [createdById], references: [id])
+    title       String   @default("New Chat")
+    messages    Json     @default("[]")
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
 }
 
 model ProjectMember {

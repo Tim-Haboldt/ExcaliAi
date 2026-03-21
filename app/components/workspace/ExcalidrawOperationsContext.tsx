@@ -9,6 +9,7 @@ export interface ExcalidrawOperations {
     updateScene: (json: string) => Promise<void>;
     updateElements: (elements: AiElement[]) => Promise<void>;
     deleteElements: (elementIds: string[]) => Promise<void>;
+    renderMermaid: (mermaidSyntax: string) => Promise<void>;
 }
 
 const noop = async () => {};
@@ -20,6 +21,7 @@ const ExcalidrawOperationsContext = createContext<ExcalidrawOperations>({
     updateScene: noop,
     updateElements: noop,
     deleteElements: noop,
+    renderMermaid: noop,
 });
 
 export const ExcalidrawOperationsProvider =

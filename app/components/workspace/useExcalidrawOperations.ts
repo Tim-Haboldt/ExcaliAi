@@ -5,6 +5,7 @@ import { excalidrawSceneSchema } from "../excalidraw/excalidrawSceneSchema";
 import {
     type AiElement,
     convertAiElementToExcalidraw,
+    resolveArrowBindings,
 } from "@/lib/ai/excalidraw-ai-schema";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
@@ -86,9 +87,15 @@ export function useExcalidrawOperations() {
         excalidrawSceneSchema.parse(parsedScene);
 
         const restored = restore(parsedScene, null, null);
+
+        const hasExplicitAppState =
+            parsedScene.appState !== undefined &&
+            parsedScene.appState !== null &&
+            Object.keys(parsedScene.appState).length > 0;
+
         api.updateScene({
             elements: restored.elements,
-            appState: restored.appState,
+            ...(hasExplicitAppState && { appState: restored.appState }),
             captureUpdate: CaptureUpdateAction.EVENTUALLY,
         });
 
@@ -113,10 +120,9 @@ export function useExcalidrawOperations() {
             (element) => !updatedIds.has(element.id),
         );
 
-        // Round-trip through JSON so restore() receives untyped data,
-        // avoiding type assertions between our schema and Excalidraw's.
         const convertedElements = aiElements.map(convertAiElementToExcalidraw);
-        const rawConverted = JSON.parse(JSON.stringify(convertedElements));
+        const withBindings = resolveArrowBindings(convertedElements as never[]);
+        const rawConverted = JSON.parse(JSON.stringify(withBindings));
         const { elements: normalizedElements } = restore(
             { elements: rawConverted },
             null,
@@ -148,6 +154,33 @@ export function useExcalidrawOperations() {
         });
     }, []);
 
+    const renderMermaid = useCallback(async (mermaidSyntax: string) => {
+        const api = excalidrawApiRef.current;
+        if (!api) {
+            return;
+        }
+
+        const { parseMermaidToExcalidraw } = await import(
+            "@excalidraw/mermaid-to-excalidraw"
+        );
+        const { convertToExcalidrawElements, CaptureUpdateAction } =
+            await import("@excalidraw/excalidraw");
+
+        const { elements: skeletonElements, files } =
+            await parseMermaidToExcalidraw(mermaidSyntax);
+        const excalidrawElements =
+            convertToExcalidrawElements(skeletonElements);
+
+        api.updateScene({
+            elements: excalidrawElements,
+            captureUpdate: CaptureUpdateAction.EVENTUALLY,
+        });
+
+        if (files) {
+            api.addFiles(Object.values(files));
+        }
+    }, []);
+
     return {
         handleExcalidrawAPI,
         excalidrawApiRef,
@@ -156,5 +189,6 @@ export function useExcalidrawOperations() {
         updateScene,
         updateElements,
         deleteElements,
+        renderMermaid,
     };
 }

@@ -7,7 +7,6 @@ const MAX_PROJECT_DATA_SIZE = 10 * 1024 * 1024; // 10 MB
 
 const updateProjectSchema = z
     .object({
-        chat: z.unknown().optional(),
         canvas: z.unknown().optional(),
     })
     .refine((data) => JSON.stringify(data).length <= MAX_PROJECT_DATA_SIZE, {
@@ -90,9 +89,6 @@ export async function PUT(request: Request, context: RouteContext) {
 
     const updateData: Record<string, unknown> = {};
 
-    if (parsed.data.chat !== undefined) {
-        updateData.chat = parsed.data.chat;
-    }
     if (parsed.data.canvas !== undefined) {
         updateData.canvas = parsed.data.canvas;
     }

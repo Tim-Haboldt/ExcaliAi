@@ -229,6 +229,7 @@ socketIoServer.on("connection", (socket) => {
         }
 
         socket.to(projectId).emit("chat:remote-message", {
+            chatId: payload.chatId,
             message: payload.message,
             senderId: socket.data.accountId,
         });

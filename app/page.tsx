@@ -130,7 +130,6 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
             const state = await workspaceRef.current.getState();
             await saveProjectMutation.mutateAsync({
                 projectId: activeProjectId,
-                chat: state.chat,
                 canvas: state.canvas,
             });
         } catch (saveError) {
@@ -227,7 +226,6 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
                         ref={workspaceRef}
                         projectId={currentProject.id}
                         currentUserId={user.id}
-                        initialChat={currentProject.chat}
                         initialCanvas={currentProject.canvas}
                         collaborators={collaborators}
                     />

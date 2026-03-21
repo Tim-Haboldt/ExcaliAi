@@ -24,6 +24,13 @@ import { useMediaQuery } from "@/app/hooks/useMediaQuery";
 import { useSocket } from "@/app/hooks/useSocket";
 import { useCanvasCollaboration } from "@/app/hooks/useCanvasCollaboration";
 import { useSaveProject } from "@/app/hooks/useProjects";
+import {
+    useChats,
+    useCreateChat,
+    useDeleteChat,
+    useSaveChat,
+    useChatMessages,
+} from "@/app/hooks/useChats";
 import { PresenceIndicator } from "../collaboration/PresenceIndicator";
 import type { ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
 import type { Collaborator } from "@/server/socket-events";
@@ -72,26 +79,19 @@ function buildExcalidrawCollaborators(
 }
 
 export interface WorkspaceHandle {
-    getState: () => Promise<{ chat: UIMessage[]; canvas: string | null }>;
+    getState: () => Promise<{ canvas: string | null }>;
 }
 
 interface WorkspaceProps {
     projectId: string;
     currentUserId: string;
-    initialChat?: UIMessage[];
     initialCanvas?: ExcalidrawInitialDataState;
     collaborators?: Collaborator[];
 }
 
 export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
     function Workspace(
-        {
-            projectId,
-            currentUserId,
-            initialChat,
-            initialCanvas,
-            collaborators = [],
-        },
+        { projectId, currentUserId, initialCanvas, collaborators = [] },
         ref,
     ) {
         const {
@@ -102,9 +102,10 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
             updateScene,
             updateElements,
             deleteElements,
+            renderMermaid,
         } = useExcalidrawOperations();
 
-        const chatMessagesRef = useRef<UIMessage[]>(initialChat ?? []);
+        const chatMessagesRef = useRef<UIMessage[]>([]);
         const chatRef = useRef<ChatPanelHandle>(null);
 
         const { socket } = useSocket();
@@ -112,7 +113,25 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
             useCanvasCollaboration(socket, excalidrawApiRef);
 
         const saveProjectMutation = useSaveProject();
+        const saveChatMutation = useSaveChat();
         const AUTO_SAVE_INTERVAL_MS = 30_000;
+
+        const [activeChatId, setActiveChatId] = useState<string | null>(null);
+        const activeChatIdRef = useRef<string | null>(null);
+        activeChatIdRef.current = activeChatId;
+
+        const { data: chatList = [] } = useChats(projectId);
+        const createChatMutation = useCreateChat(projectId);
+        const deleteChatMutation = useDeleteChat(projectId);
+
+        useEffect(() => {
+            if (chatList.length > 0 && !activeChatId) {
+                setActiveChatId(chatList[0].id);
+            }
+        }, [chatList, activeChatId]);
+
+        const { data: activeChatData, isLoading: isChatLoading } =
+            useChatMessages(projectId, activeChatId);
 
         useEffect(() => {
             const interval = setInterval(async () => {
@@ -124,16 +143,28 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
                 try {
                     await saveProjectMutation.mutateAsync({
                         projectId,
-                        chat: chatMessagesRef.current,
                         canvas,
                     });
                 } catch (autoSaveError) {
-                    console.error("Auto-save failed:", autoSaveError);
+                    console.error("Auto-save canvas failed:", autoSaveError);
+                }
+
+                const currentChatId = activeChatIdRef.current;
+                if (currentChatId && chatMessagesRef.current.length > 0) {
+                    try {
+                        await saveChatMutation.mutateAsync({
+                            projectId,
+                            chatId: currentChatId,
+                            messages: chatMessagesRef.current,
+                        });
+                    } catch (chatSaveError) {
+                        console.error("Auto-save chat failed:", chatSaveError);
+                    }
                 }
             }, AUTO_SAVE_INTERVAL_MS);
 
             return () => clearInterval(interval);
-        }, [projectId, getScene, saveProjectMutation]);
+        }, [projectId, getScene, saveProjectMutation, saveChatMutation]);
 
         useImperativeHandle(
             ref,
@@ -141,13 +172,75 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
                 async getState() {
                     const canvas = await getScene();
 
-                    return {
-                        chat: chatMessagesRef.current,
-                        canvas,
-                    };
+                    return { canvas };
                 },
             }),
             [getScene],
+        );
+
+        const handleSaveChatBeforeSwitch = useCallback(async () => {
+            const currentChatId = activeChatIdRef.current;
+            if (!currentChatId || chatMessagesRef.current.length === 0) {
+                return;
+            }
+
+            try {
+                await saveChatMutation.mutateAsync({
+                    projectId,
+                    chatId: currentChatId,
+                    messages: chatMessagesRef.current,
+                });
+            } catch (saveError) {
+                console.error("Failed to save chat before switch:", saveError);
+            }
+        }, [projectId, saveChatMutation]);
+
+        const handleChatSelect = useCallback(
+            async (chatId: string) => {
+                if (chatId === activeChatId) {
+                    return;
+                }
+
+                await handleSaveChatBeforeSwitch();
+                setActiveChatId(chatId);
+            },
+            [activeChatId, handleSaveChatBeforeSwitch],
+        );
+
+        const handleNewChat = useCallback(async () => {
+            try {
+                await handleSaveChatBeforeSwitch();
+                const newChat = await createChatMutation.mutateAsync();
+                setActiveChatId(newChat.id);
+            } catch (createError) {
+                console.error("Failed to create chat:", createError);
+            }
+        }, [createChatMutation, handleSaveChatBeforeSwitch]);
+
+        const handleDeleteChat = useCallback(
+            async (chatId: string) => {
+                if (chatList.length <= 1) {
+                    return;
+                }
+
+                try {
+                    await deleteChatMutation.mutateAsync(chatId);
+
+                    if (activeChatId === chatId) {
+                        const remainingChats = chatList.filter(
+                            (chat) => chat.id !== chatId,
+                        );
+                        setActiveChatId(
+                            remainingChats.length > 0
+                                ? remainingChats[0].id
+                                : null,
+                        );
+                    }
+                } catch (deleteError) {
+                    console.error("Failed to delete chat:", deleteError);
+                }
+            },
+            [chatList, activeChatId, deleteChatMutation],
         );
 
         const handleAiPrompt = useCallback(
@@ -225,8 +318,16 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
                 updateScene,
                 updateElements,
                 deleteElements,
+                renderMermaid,
             }),
-            [getScene, getPng, updateScene, updateElements, deleteElements],
+            [
+                getScene,
+                getPng,
+                updateScene,
+                updateElements,
+                deleteElements,
+                renderMermaid,
+            ],
         );
 
         return (
@@ -285,13 +386,27 @@ export const Workspace = forwardRef<WorkspaceHandle, WorkspaceProps>(
                                 className="h-full w-full overflow-hidden"
                                 hidden={isChatCollapsed}
                             >
-                                <ChatPanel
-                                    ref={chatRef}
-                                    className="h-full"
-                                    projectId={projectId}
-                                    initialMessages={initialChat}
-                                    messagesRef={chatMessagesRef}
-                                />
+                                {activeChatId && !isChatLoading ? (
+                                    <ChatPanel
+                                        key={activeChatId}
+                                        ref={chatRef}
+                                        className="h-full"
+                                        projectId={projectId}
+                                        chatId={activeChatId}
+                                        chats={chatList}
+                                        initialMessages={
+                                            activeChatData?.messages
+                                        }
+                                        messagesRef={chatMessagesRef}
+                                        onChatSelect={handleChatSelect}
+                                        onNewChat={handleNewChat}
+                                        onDeleteChat={handleDeleteChat}
+                                    />
+                                ) : (
+                                    <div className="flex h-full items-center justify-center">
+                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-50" />
+                                    </div>
+                                )}
                             </div>
                         </Panel>
                     </Group>
