@@ -35,6 +35,12 @@ yarn-error.log*
 .env*
 !.env.example
 
+# generated nginx config (template is committed, not the generated output)
+nginx/nginx.conf
+
+# production deployment zip
+excalidraw-ai-prod.zip
+
 # vercel
 .vercel
 

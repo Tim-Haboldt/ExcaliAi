@@ -14,7 +14,8 @@
         "start": "next start",
         "lint": "eslint",
         "prettier": "prettier --write .",
-        "test:e2e": "playwright test"
+        "test:e2e": "playwright test",
+        "pack:prod": "rm -f excalidraw-ai-prod.zip && zip -r excalidraw-ai-prod.zip app/ lib/ server/ prisma/ public/ nginx/ Dockerfile .dockerignore docker-compose.prod.yml docker-entrypoint.sh install.sh .env.example package.json pnpm-lock.yaml pnpm-workspace.yaml next.config.ts tsconfig.json prisma.config.ts proxy.ts postcss.config.mjs .prettierrc.json .prettierignore eslint.config.mjs .gitignore -x 'lib/generated/*'"
     },
     "husky": {
         "hooks": {
